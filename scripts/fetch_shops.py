@@ -5,7 +5,7 @@ import requests
 from dotenv import load_dotenv
 from decimal import Decimal
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# Django 설정 불러오기
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "nailo.settings")  
 django.setup()
 
@@ -20,8 +20,8 @@ client_secret = os.getenv("NAVER_CLIENT_SECRET")
 search_url = "https://openapi.naver.com/v1/search/local.json"
 
 # 네이버 Geocoding API 설정
-geocode_client_id = os.getenv("NAVER_GEOCODE_CLIENT_ID")  # Geocoding API용 Client ID
-geocode_client_secret = os.getenv("NAVER_GEOCODE_CLIENT_SECRET")  # Geocoding API용 Client Secret
+geocode_client_id = os.getenv("NAVER_GEOCODE_CLIENT_ID")
+geocode_client_secret = os.getenv("NAVER_GEOCODE_CLIENT_SECRET")
 geocode_url = "https://naveropenapi.apigw.ntruss.com/map-geocode/v2/geocode"
 
 # 네이버 검색 API 요청 헤더
@@ -38,10 +38,10 @@ geocode_headers = {
 
 # 검색 파라미터
 params = {
-    "query": "학익동 네일샵",      # 검색어
-    "display": 10,          # 검색 결과 갯수 (최대 100)
-    "start": 1,             # 시작 위치
-    "sort": "comment"        # 정렬 방식
+    "query": "강남 네일샵",
+    "display": 10,
+    "start": 1,   
+    "sort": "comment" 
 }
 
 # API 요청 보내기
@@ -67,7 +67,6 @@ if response.status_code == 200:
                 lat = Decimal(str(geocode_data['addresses'][0]['y']))
                 lng = Decimal(str(geocode_data['addresses'][0]['x']))
 
-                # Shops 모델로 데이터 저장
                 shop = Shops.objects.create(
                     shopper_id=shopper_id,
                     shopper_name=shopper_name,
