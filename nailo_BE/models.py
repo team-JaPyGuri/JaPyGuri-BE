@@ -1,14 +1,16 @@
+import uuid
 from django.db import models
 from django.contrib.auth.models import User
 
 class Shops(models.Model):
-    shopper_key = models.CharField(max_length=255)
+    shopper_key = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True)
     shopper_id = models.CharField(max_length=255)
     shopper_name = models.CharField(max_length=255)
     lat = models.DecimalField(max_digits=9, decimal_places=6)
     lng = models.DecimalField(max_digits=9, decimal_places=6) 
     created_at = models.DateTimeField(auto_now_add=True)
     intro_image = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
 
     def __str__(self):
         return self.shopper_name
@@ -21,14 +23,15 @@ class Customers(models.Model):
     customer_name = models.CharField(max_length=255)                   
     created_at = models.DateTimeField(auto_now_add=True)               
     generated_image = models.URLField(max_length=500, blank=True, null=True)                  
-    design_book = models.JSONField(blank=True, null=True)              
+    design_book = models.JSONField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)           
 
     def __str__(self):
         return self.customer_name
 
 class Designs(models.Model):
-    design_key = models.CharField(max_length=255, primary_key=True)       
-    shopper_name = models.ForeignKey('Shops', on_delete=models.CASCADE) 
+    design_key = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True)    
+    shop = models.ForeignKey(Shops, to_field='shopper_key', on_delete=models.CASCADE) 
     design_name = models.CharField(max_length=255)                        
     price = models.IntegerField()                                         
     created_at = models.DateTimeField(auto_now_add=True)                 
@@ -45,9 +48,9 @@ class Request(models.Model):
         ('rejected', 'Rejected'),
     ]
     request_key = models.CharField(max_length=255, primary_key=True)  
-    customer_key = models.ForeignKey('Customers', on_delete=models.CASCADE, related_name="requests")
-    shopper_key = models.ForeignKey('Shops', on_delete=models.CASCADE, related_name="requests")
-    design_key = models.ForeignKey('Designs', on_delete=models.CASCADE, related_name="requests")
+    customer = models.ForeignKey('Customers', on_delete=models.CASCADE, related_name="requests")
+    shop = models.ForeignKey(Shops, to_field='shopper_key', on_delete=models.CASCADE, related_name="requests")
+    design = models.ForeignKey('Designs', on_delete=models.CASCADE, related_name="requests")
     price = models.IntegerField() 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     contents = models.TextField(blank=True, null=True)  
@@ -58,9 +61,9 @@ class Request(models.Model):
 
 class Response(models.Model):
     response_key = models.CharField(max_length=255, primary_key=True)     
-    customer_key = models.ForeignKey('Customers', on_delete=models.CASCADE)  
-    shopper_key = models.ForeignKey('Shops', on_delete=models.CASCADE)   
-    request_key = models.ForeignKey('Request', on_delete=models.CASCADE)  
+    customer = models.ForeignKey('Customers', on_delete=models.CASCADE, related_name="response")
+    shop = models.ForeignKey(Shops, to_field='shopper_key', on_delete=models.CASCADE, related_name="response")
+    request = models.ForeignKey('Request', on_delete=models.CASCADE)  
     price = models.CharField(max_length=255) # 네일숍에서 새로 입력                           
     contents = models.TextField(blank=True, null=True)            
     created_at = models.DateTimeField(auto_now_add=True)                    
