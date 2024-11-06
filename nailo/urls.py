@@ -16,7 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from nailo_BE import views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path('api/nearby-shops/', views.get_nearby_shops, name='get_nearby_shops'), 
+    path('api/request-service/', views.request_service, name='request_service'),
+    path('api/respond-request/', views.respond_request, name='respond_request'),
+    path('api/get-responses/<str:customer_key>/<str:design_key>/', views.get_responses, name='get_responses'),
 ]
