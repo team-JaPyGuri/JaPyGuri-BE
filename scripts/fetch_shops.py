@@ -38,7 +38,7 @@ geocode_headers = {
 
 # 검색 파라미터
 params = {
-    "query": "강남 네일샵",
+    "query": "인하대 네일",
     "display": 10,
     "start": 1,   
     "sort": "comment" 

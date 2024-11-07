@@ -17,7 +17,7 @@ class Shops(models.Model):
 
 
 class Customers(models.Model):
-    customer_key = models.CharField(max_length=255, primary_key=True)  
+    customer_key = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True)    
     customer_id = models.CharField(max_length=255, unique=True)        
     customer_pw = models.CharField(max_length=255)                    
     customer_name = models.CharField(max_length=255)                   
