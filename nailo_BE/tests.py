@@ -1,5 +1,6 @@
 from django.test import TestCase, Client
 from django.urls import reverse
+from uuid import UUID
 from .models import Shops, Request, Response, Customers, Designs
 import json
 
@@ -9,7 +10,6 @@ class RequireTests(TestCase):
         # 공통 데이터 생성
         self.client = Client()
         self.customer = Customers.objects.create(
-            customer_key="test_customer",
             customer_id="test_id",
             customer_pw="test_password",
             customer_name="Test Customer"
@@ -47,14 +47,14 @@ class RequireTests(TestCase):
         )
 
     def test_get_responses(self):
-        url = reverse('get_responses', args=[str(self.customer.customer_key), str(self.design.design_key)])
+        url = reverse('nail-service-get-responses', args=[str(self.customer.customer_key), str(self.design.design_key)])
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()), 1)
         self.assertIn("response_key", response.json()[0])
 
     def test_respond_request_accepted_with_price(self):
-        url = reverse('respond_request')
+        url = reverse('nail-service-respond-service')
         response_data = {
             "request_key": str(self.request.request_key),
             "response": "accepted",
@@ -67,7 +67,7 @@ class RequireTests(TestCase):
         self.assertEqual(response.json().get("message"), "Response submitted successfully")
 
     def test_respond_request_accepted_without_price(self):
-        url = reverse('respond_request')
+        url = reverse('nail-service-respond-service')
         response_data = {
             "request_key": str(self.request.request_key),
             "response": "accepted",
@@ -80,7 +80,7 @@ class RequireTests(TestCase):
         self.assertEqual(response.json().get("message"), "Response submitted successfully")
 
     def test_respond_request_rejected(self):
-        url = reverse('respond_request')
+        url = reverse('nail-service-respond-service')
         response_data = {
             "request_key": str(self.request.request_key),
             "response": "rejected",
@@ -98,7 +98,6 @@ class NotRequireTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.customer = Customers.objects.create(
-            customer_key="test_customer",
             customer_id="test_id",
             customer_pw="test_password",
             customer_name="Test Customer"
@@ -119,21 +118,21 @@ class NotRequireTests(TestCase):
         )
 
     def test_nearby_shops(self):
-        url = reverse('get_nearby_shops')
+        url = reverse('nail-service-nearby-shops')
         response = self.client.get(url, data={'lat': 37.5665, 'lng': 126.9780})
         response_data = response.json()
         self.assertGreaterEqual(len(response_data), 1)
         self.assertIn("shopper_key", response_data[0])
-        self.assertIn("name", response_data[0])
-        self.assertIn("latitude", response_data[0])
-        self.assertIn("longitude", response_data[0])
+        self.assertIn("shopper_name", response_data[0])
+        self.assertIn("lat", response_data[0])
+        self.assertIn("lng", response_data[0])
 
     def test_request_service(self):
-        url = reverse('request_service')
+        url = reverse('nail-service-request-service')
         request_data = {
             "customer_key": str(self.customer.customer_key),
             "design_key": str(self.design.design_key),
-            "price": "10000",
+            "price": 10000,
             "contents": "가능 여부를 알려주세요",
         }
         response = self.client.post(

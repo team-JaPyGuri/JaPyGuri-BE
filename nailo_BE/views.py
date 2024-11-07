@@ -4,7 +4,7 @@ from rest_framework.response import Response as DRFResponse
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from geopy.distance import distance
-import uuid
+from .serializers import *
 import json
 
 class NailServiceViewSet(viewsets.ViewSet):
@@ -17,10 +17,10 @@ class NailServiceViewSet(viewsets.ViewSet):
         ],
         responses={200: ShopSerializer(many=True)}
     )
-    @action(detail=False, methods=['GET'])
+    @action(detail=False, methods=['GET'], url_path='nearby-shops', name='nearby_shops')
     def nearby_shops(self, request):
         """
-        Get list of nearby nail shops sorted by distance from user's location
+        유저 현재 위치 중심으로 주변 샵 거리 정렬 후 반환
         """
         user_lat = request.GET.get('lat')
         user_lng = request.GET.get('lng')
@@ -42,16 +42,19 @@ class NailServiceViewSet(viewsets.ViewSet):
 
     @swagger_auto_schema(
         method='post',
-        request_body=ServiceRequestInputSerializer,
-        responses={200: RequestSerializer(many=True)}
+        request_body=RequestSerializer,
+        responses={200: AddRequestSerializer(many=True)}
     )
-    @action(detail=False, methods=['POST'])
+    
+    @action(detail=False, methods=['POST'], url_path='respond-service', name='respond_service')
     def request_service(self, request):
         """
-        Request nail service to nearby shops
+        주변 샵에 시술 요청
         """
-        serializer = ServiceRequestInputSerializer(data=request.data)
+        serializer = RequestSerializer(data=request.data)
+        print("도착정보: ", serializer)
         if not serializer.is_valid():
+            print("Request Service Validation Errors:", serializer.errors)
             return DRFResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         data = serializer.validated_data
@@ -94,7 +97,7 @@ class NailServiceViewSet(viewsets.ViewSet):
                     
                     responses.append(request_instance)
                 
-            serializer = RequestSerializer(responses, many=True)
+            serializer = AddRequestSerializer(responses, many=True)
             return DRFResponse({"status": "success", "requests": serializer.data})
             
         except (Designs.DoesNotExist, Customers.DoesNotExist, Shops.DoesNotExist) as e:
@@ -102,16 +105,17 @@ class NailServiceViewSet(viewsets.ViewSet):
 
     @swagger_auto_schema(
         method='post',
-        request_body=ServiceResponseInputSerializer,
+        request_body=ResponseSerializer,
         responses={200: openapi.Response('Response submitted successfully')}
     )
-    @action(detail=False, methods=['POST'])
+    @action(detail=False, methods=['POST'], url_path='respond-service', name='respond_service')
     def respond_service(self, request):
         """
-        Respond to a service request (accept/reject)
+        요청에 따라 accept/reject로 상태 변경 후 응답
         """
-        serializer = ServiceResponseInputSerializer(data=request.data)
+        serializer = ResponseListSerializer(data=request.data)
         if not serializer.is_valid():
+            print("Request Service Validation Errors:", serializer.errors)
             return DRFResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         data = serializer.validated_data
@@ -153,12 +157,12 @@ class NailServiceViewSet(viewsets.ViewSet):
             openapi.Parameter('customer_key', openapi.IN_PATH, type=openapi.TYPE_STRING),
             openapi.Parameter('design_key', openapi.IN_PATH, type=openapi.TYPE_STRING),
         ],
-        responses={200: ResponseSerializer(many=True)}
+        responses={200: ResponseListSerializer(many=True)}
     )
     @action(detail=False, methods=['GET'], url_path='responses/(?P<customer_key>[^/.]+)/(?P<design_key>[^/.]+)')
     def get_responses(self, request, customer_key, design_key):
         """
-        Get all responses for a specific customer and design
+        요청 응답(a.k.a 채팅방) 불러오기
         """
         try:
             responses = Response.objects.filter(
@@ -166,7 +170,7 @@ class NailServiceViewSet(viewsets.ViewSet):
                 request__design__design_key=design_key
             )
             
-            serializer = ResponseSerializer(responses, many=True)
+            serializer = ResponseListSerializer(responses, many=True)
             return DRFResponse(serializer.data)
             
         except Exception as e:
