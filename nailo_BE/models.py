@@ -57,7 +57,7 @@ class Request(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Request {self.request_key} from {self.customer_key} for {self.design_key}"
+        return f"Request {self.request_key} from {self.customer} for {self.design}"
 
 class Response(models.Model):
     response_key = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True)
@@ -69,4 +69,4 @@ class Response(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)                    
 
     def __str__(self):
-        return f"Response {self.response_key} to Request {self.request_key}"
+        return f"Response {self.response_key} to Request {self.request}"

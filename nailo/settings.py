@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     'rest_framework',
     'nailo_BE',
+    'corsheaders',
+    'drf_yasg',
 ]
 
 
@@ -52,9 +54,17 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     'middlewares.demo_login.DemoLoginMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = "nailo.urls"
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+#추후 아래 코드로 변경 예정
+# CORS_ALLOWED_ORIGINS = [
+#     'https://domain.com',
+# ]
 
 TEMPLATES = [
     {

@@ -8,9 +8,6 @@ from .models import *
 def get_nearby_shops(request):
     user_lat = request.GET.get('lat')
     user_lng = request.GET.get('lng')
-
-    print("Received latitude:", user_lat)
-    print("Received longitude:", user_lng)
     
     # 예외처리: 유저 현재 위치가 반환되지 않음
     if user_lat is None or user_lng is None:
@@ -41,29 +38,49 @@ def request_service(request):
     price = design.price
     
     # 반경 내 네일샵 검색
-    nearby_shops = get_nearby_shops(request)
+    if request.META.get('HTTP_TEST_MODE'):  # 테스트 모드 확인
+        nearby_shops = [
+            {"shopper_key": str(shop.shopper_key)}
+            for shop in Shops.objects.all()[:1]  # 테스트 시 상위 1개 샵만 사용
+        ]
+    else:
+        # 실제 환경에서 get_nearby_shops 호출
+        nearby_shops_response = get_nearby_shops(request)
+        if nearby_shops_response.status_code != 200:
+            return nearby_shops_response
+        nearby_shops = json.loads(nearby_shops_response.content)
     
     responses = []
     for shop_data in nearby_shops:
+        # 중복 방지: 기존 요청이 이미 존재하는지 확인
         shop = Shops.objects.get(shopper_key=shop_data['shopper_key'])
-        request_instance = Request.objects.create(
-            customer=Customers.objects.get(customer_key=customer_id),
-            shop=shop,
-            design=design,
-            price=price,
-            status="pending",
-            contents=data.get('contents', '') # 남길 메모 없으면 빈칸으로
+        customer = Customers.objects.get(customer_key=customer_id)
+        existing_request = Request.objects.filter(
+            customer=customer, shop=shop, design=design
         )
-        responses.append({
-            "request_key": str(request_instance.request_key),
-            "shop_name": shop.shopper_name,
-            "status": request_instance.status
-        })
+        if not existing_request.exists():
+            request_instance = Request.objects.create(
+                customer=Customers.objects.get(customer_key=customer_id),
+                shop=shop,
+                design=design,
+                price=price,
+                status="pending",
+                contents=data.get('contents', '')  # 남길 메모 없으면 빈칸으로
+            )
 
+            responses.append({
+                "request_key": str(request_instance.request_key),
+                "shop_name": shop.shopper_name,
+                "status": request_instance.status,
+                "price": request_instance.price
+            })                   
+        else:
+            print("existing_request.count() == true. Something goes wrong")
     return JsonResponse({"status": "success", "requests": responses})
 
 def respond_request(request):
-    data = json.loads(request.body)  
+    data = json.loads(request.body)
+    
     request_key = uuid.UUID(data.get('request_key'))  
     shop_response = data.get('response')  # 'accepted' or 'rejected' 가능
     price = data.get('price')
@@ -73,17 +90,17 @@ def respond_request(request):
         request_instance = Request.objects.get(request_key=request_key)
         
         if shop_response == 'accepted':
-            if not price:  # 가격이 없으면 요청의 원래 가격 사용
-                price = request_instance.price
+            price = request_instance.price
             request_instance.status = 'accepted'
             
-            Response.objects.create(
-                customer=request_instance.customer,
-                shop=request_instance.shop,
-                request=request_instance,
-                price=price,
-                contents=contents
-            )
+            if not Response.objects.filter(request=request_instance).exists():
+                created_response = Response.objects.create(
+                    customer=request_instance.customer,
+                    shop=request_instance.shop,
+                    request=request_instance,
+                    price=price,
+                    contents=contents
+                )
         else:
             request_instance.status = 'rejected'
         
