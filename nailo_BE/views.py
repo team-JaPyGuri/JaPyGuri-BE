@@ -1,127 +1,173 @@
-import json
-from django.shortcuts import render
-from django.http import JsonResponse
-from geopy.distance import geodesic, distance
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response as DRFResponse
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from geopy.distance import distance
 import uuid
-from .models import *
+import json
 
-def get_nearby_shops(request):
-    user_lat = request.GET.get('lat')
-    user_lng = request.GET.get('lng')
+class NailServiceViewSet(viewsets.ViewSet):
     
-    # 예외처리: 유저 현재 위치가 반환되지 않음
-    if user_lat is None or user_lng is None:
-        return JsonResponse({"error": "Latitude and longitude are required."}, status=400)
-    
-    shops = Shops.objects.all()
-    sorted_shops = sorted(
-        shops,
-        key=lambda shop: distance((user_lat, user_lng), (shop.lat, shop.lng)).km
+    @swagger_auto_schema(
+        method='get',
+        manual_parameters=[
+            openapi.Parameter('lat', openapi.IN_QUERY, description="User's latitude", type=openapi.TYPE_NUMBER),
+            openapi.Parameter('lng', openapi.IN_QUERY, description="User's longitude", type=openapi.TYPE_NUMBER),
+        ],
+        responses={200: ShopSerializer(many=True)}
     )
-    
-    response_data = [{
-        "shopper_key": shop.shopper_key,
-        "name": shop.shopper_name,
-        "latitude": shop.lat,
-        "longitude": shop.lng
-    } for shop in sorted_shops[:5]]
-    
-    return JsonResponse(response_data, safe=False)
-
-def request_service(request):
-    data = json.loads(request.body)  
-    design_id = data.get('design_key')
-    customer_id = data.get('customer_key')
-    
-    # 기본값: 디자인 원래 가격
-    design = Designs.objects.get(design_key=design_id)
-    price = design.price
-    
-    # 반경 내 네일샵 검색
-    if request.META.get('HTTP_TEST_MODE'):  # 테스트 모드 확인
-        nearby_shops = [
-            {"shopper_key": str(shop.shopper_key)}
-            for shop in Shops.objects.all()[:1]  # 테스트 시 상위 1개 샵만 사용
-        ]
-    else:
-        # 실제 환경에서 get_nearby_shops 호출
-        nearby_shops_response = get_nearby_shops(request)
-        if nearby_shops_response.status_code != 200:
-            return nearby_shops_response
-        nearby_shops = json.loads(nearby_shops_response.content)
-    
-    responses = []
-    for shop_data in nearby_shops:
-        # 중복 방지: 기존 요청이 이미 존재하는지 확인
-        shop = Shops.objects.get(shopper_key=shop_data['shopper_key'])
-        customer = Customers.objects.get(customer_key=customer_id)
-        existing_request = Request.objects.filter(
-            customer=customer, shop=shop, design=design
-        )
-        if not existing_request.exists():
-            request_instance = Request.objects.create(
-                customer=Customers.objects.get(customer_key=customer_id),
-                shop=shop,
-                design=design,
-                price=price,
-                status="pending",
-                contents=data.get('contents', '')  # 남길 메모 없으면 빈칸으로
+    @action(detail=False, methods=['GET'])
+    def nearby_shops(self, request):
+        """
+        Get list of nearby nail shops sorted by distance from user's location
+        """
+        user_lat = request.GET.get('lat')
+        user_lng = request.GET.get('lng')
+        
+        if user_lat is None or user_lng is None:
+            return DRFResponse(
+                {"error": "Latitude and longitude are required."}, 
+                status=status.HTTP_400_BAD_REQUEST
             )
-
-            responses.append({
-                "request_key": str(request_instance.request_key),
-                "shop_name": shop.shopper_name,
-                "status": request_instance.status,
-                "price": request_instance.price
-            })                   
-        else:
-            print("existing_request.count() == true. Something goes wrong")
-    return JsonResponse({"status": "success", "requests": responses})
-
-def respond_request(request):
-    data = json.loads(request.body)
-    
-    request_key = uuid.UUID(data.get('request_key'))  
-    shop_response = data.get('response')  # 'accepted' or 'rejected' 가능
-    price = data.get('price')
-    contents = data.get('contents', '')
-
-    try:
-        request_instance = Request.objects.get(request_key=request_key)
         
-        if shop_response == 'accepted':
-            price = request_instance.price
-            request_instance.status = 'accepted'
-            
-            if not Response.objects.filter(request=request_instance).exists():
-                created_response = Response.objects.create(
-                    customer=request_instance.customer,
-                    shop=request_instance.shop,
-                    request=request_instance,
-                    price=price,
-                    contents=contents
-                )
-        else:
-            request_instance.status = 'rejected'
+        shops = Shops.objects.all()
+        sorted_shops = sorted(
+            shops,
+            key=lambda shop: distance((float(user_lat), float(user_lng)), (shop.lat, shop.lng)).km
+        )
         
-        request_instance.save()
-        return JsonResponse({"message": "Response submitted successfully", "status": request_instance.status})
+        serializer = ShopSerializer(sorted_shops[:5], many=True)
+        return DRFResponse(serializer.data)
 
-    except Request.DoesNotExist:
-        return JsonResponse({"error": "Request not found"}, status=404)
-    
-def get_responses(request, customer_key, design_key):
-    responses = Response.objects.filter(
-        customer__customer_key=customer_key,
-        request__design__design_key=design_key
+    @swagger_auto_schema(
+        method='post',
+        request_body=ServiceRequestInputSerializer,
+        responses={200: RequestSerializer(many=True)}
     )
+    @action(detail=False, methods=['POST'])
+    def request_service(self, request):
+        """
+        Request nail service to nearby shops
+        """
+        serializer = ServiceRequestInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return DRFResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        design_id = data['design_key']
+        customer_id = data['customer_key']
+        
+        try:
+            design = Designs.objects.get(design_key=design_id)
+            price = design.price
+            
+            if request.META.get('HTTP_TEST_MODE'):
+                nearby_shops = [
+                    {"shopper_key": str(shop.shopper_key)}
+                    for shop in Shops.objects.all()[:1]
+                ]
+            else:
+                nearby_shops_response = self.nearby_shops(request)
+                if nearby_shops_response.status_code != 200:
+                    return nearby_shops_response
+                nearby_shops = nearby_shops_response.data
+            
+            responses = []
+            for shop_data in nearby_shops:
+                shop = Shops.objects.get(shopper_key=shop_data['shopper_key'])
+                customer = Customers.objects.get(customer_key=customer_id)
+                
+                existing_request = Request.objects.filter(
+                    customer=customer, shop=shop, design=design
+                )
+                
+                if not existing_request.exists():
+                    request_instance = Request.objects.create(
+                        customer=customer,
+                        shop=shop,
+                        design=design,
+                        price=price,
+                        status="pending",
+                        contents=data.get('contents', '')
+                    )
+                    
+                    responses.append(request_instance)
+                
+            serializer = RequestSerializer(responses, many=True)
+            return DRFResponse({"status": "success", "requests": serializer.data})
+            
+        except (Designs.DoesNotExist, Customers.DoesNotExist, Shops.DoesNotExist) as e:
+            return DRFResponse({"error": str(e)}, status=status.HTTP_404_NOT_FOUND)
 
-    response_data = [{
-        "response_key": str(response.response_key),
-        "shop_name": response.shop.shopper_name,
-        "price": response.price,
-        "contents": response.contents,
-        "status": response.request.status
-    } for response in responses]
+    @swagger_auto_schema(
+        method='post',
+        request_body=ServiceResponseInputSerializer,
+        responses={200: openapi.Response('Response submitted successfully')}
+    )
+    @action(detail=False, methods=['POST'])
+    def respond_service(self, request):
+        """
+        Respond to a service request (accept/reject)
+        """
+        serializer = ServiceResponseInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return DRFResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        data = serializer.validated_data
+        request_key = data['request_key']
+        shop_response = data['response']
+        price = data.get('price')
+        contents = data.get('contents', '')
 
-    return JsonResponse(response_data, safe=False)
+        try:
+            request_instance = Request.objects.get(request_key=request_key)
+            
+            if shop_response == 'accepted':
+                price = request_instance.price if price is None else price
+                request_instance.status = 'accepted'
+                
+                if not Response.objects.filter(request=request_instance).exists():
+                    Response.objects.create(
+                        customer=request_instance.customer,
+                        shop=request_instance.shop,
+                        request=request_instance,
+                        price=price,
+                        contents=contents
+                    )
+            else:
+                request_instance.status = 'rejected'
+            
+            request_instance.save()
+            return DRFResponse({
+                "message": "Response submitted successfully", 
+                "status": request_instance.status
+            })
+
+        except Request.DoesNotExist:
+            return DRFResponse({"error": "Request not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    @swagger_auto_schema(
+        method='get',
+        manual_parameters=[
+            openapi.Parameter('customer_key', openapi.IN_PATH, type=openapi.TYPE_STRING),
+            openapi.Parameter('design_key', openapi.IN_PATH, type=openapi.TYPE_STRING),
+        ],
+        responses={200: ResponseSerializer(many=True)}
+    )
+    @action(detail=False, methods=['GET'], url_path='responses/(?P<customer_key>[^/.]+)/(?P<design_key>[^/.]+)')
+    def get_responses(self, request, customer_key, design_key):
+        """
+        Get all responses for a specific customer and design
+        """
+        try:
+            responses = Response.objects.filter(
+                customer__customer_key=customer_key,
+                request__design__design_key=design_key
+            )
+            
+            serializer = ResponseSerializer(responses, many=True)
+            return DRFResponse(serializer.data)
+            
+        except Exception as e:
+            return DRFResponse({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
