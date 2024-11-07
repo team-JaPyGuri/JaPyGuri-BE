@@ -38,7 +38,7 @@ geocode_headers = {
 
 # 검색 파라미터
 params = {
-    "query": "강남 네일샵",
+    "query": "인천역 네일",
     "display": 10,
     "start": 1,   
     "sort": "comment" 
@@ -54,7 +54,7 @@ if response.status_code == 200:
         shopper_key = item.get('id', '')
         shopper_id = item.get('category', '')
         shopper_name = item['title'].replace("<b>", "").replace("</b>", "")
-        intro_image = item.get('link', '')
+        shops_url = item.get('link', '')
         address = item['address']
 
         # Geocoding API를 사용해 주소를 위경도 좌표로 변환
@@ -72,7 +72,7 @@ if response.status_code == 200:
                     shopper_name=shopper_name,
                     lat=lat,
                     lng=lng,
-                    intro_image=intro_image
+                    shops_url=shops_url
                 )
 
                 print(f"저장된 정보 - 이름: {shopper_name}, 주소: {address}, 전화번호: {item.get('telephone', '없음')}, 위도: {lat}, 경도: {lng}")
