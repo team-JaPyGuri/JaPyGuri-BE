@@ -1,10 +1,12 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response as DRFResponse
+from rest_framework.views import APIView
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from geopy.distance import distance
 from .serializers import *
+from .models import Shops
 import json
 
 class NailServiceViewSet(viewsets.ViewSet):
@@ -67,7 +69,7 @@ class NailServiceViewSet(viewsets.ViewSet):
             
             if request.META.get('HTTP_TEST_MODE'):
                 nearby_shops = [
-                    {"shopper_key": str(shop.shopper_key)}
+                    {"shop_key": str(shop.shop_key)}
                     for shop in Shops.objects.all()[:1]
                 ]
             else:
@@ -78,7 +80,7 @@ class NailServiceViewSet(viewsets.ViewSet):
             
             responses = []
             for shop_data in nearby_shops:
-                shop = Shops.objects.get(shopper_key=shop_data['shopper_key'])
+                shop = Shops.objects.get(shop_key=shop_data['shop_key'])
                 customer = Customers.objects.get(customer_key=customer_id)
                 
                 existing_request = Request.objects.filter(
@@ -175,3 +177,9 @@ class NailServiceViewSet(viewsets.ViewSet):
             
         except Exception as e:
             return DRFResponse({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class ShopListView(APIView):
+    def get(self, request, *args, **kwargs):
+        shops = Shops.objects.all()
+        serializer = ShopSerializer(shops, many=True) 
+        return DRFResponse(serializer.data)
