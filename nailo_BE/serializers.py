@@ -4,10 +4,10 @@ from .models import Shops, Request, Response, Designs, Customers
 class ShopSerializer(serializers.ModelSerializer):
     class Meta:
         model = Shops
-        fields = ['shopper_key', 'shopper_name', 'lat', 'lng']
+        fields = ['shop_key', 'shop_name', 'shop_id', 'lat', 'lng', 'shop_url']
 
 class AddRequestSerializer(serializers.ModelSerializer):
-    shop_name = serializers.CharField(source='shop.shopper_name', read_only=True)
+    shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
 
     class Meta:
         model = Request
@@ -15,7 +15,7 @@ class AddRequestSerializer(serializers.ModelSerializer):
 
 # 샵 응답 목록 조회
 class ResponseListSerializer(serializers.ModelSerializer):
-    shop_name = serializers.CharField(source='shop.shopper_name', read_only=True)
+    shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
     status = serializers.CharField(source='request.status', read_only=True)
 
     class Meta:
@@ -30,5 +30,5 @@ class RequestSerializer(serializers.Serializer):
 class ResponseSerializer(serializers.Serializer):
     request_key = serializers.UUIDField()
     response = serializers.ChoiceField(choices=['accepted', 'rejected'])
-    price = serializers.DecimalFieldserializers.IntegerField(required=False)
+    price = serializers.IntegerField(required=False)
     contents = serializers.CharField(required=False, default='')

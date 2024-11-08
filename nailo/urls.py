@@ -4,7 +4,7 @@ from rest_framework import permissions
 from rest_framework.routers import DefaultRouter
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-from nailo_BE.views import NailServiceViewSet
+from nailo_BE.views import *
 
 # DRF Router 설정
 router = DefaultRouter()
@@ -29,6 +29,7 @@ urlpatterns = [
     
     # ViewSet URLs
     path('', include(router.urls)),
+    path('api/shops/', ShopListView.as_view(), name='shop-list'),
     
     # Swagger documentation
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),

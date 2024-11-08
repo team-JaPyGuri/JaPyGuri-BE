@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-x@bi@-e)o7_chbk9b3l16=807o4b%-n5!o4np2qm4ok^rx=da-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.219.105']
 
 
 # Application definition
@@ -51,20 +51,21 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # 'middlewares.demo_login.DemoLoginMiddleware',  # 여기에 배치
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    'middlewares.demo_login.DemoLoginMiddleware',
     'corsheaders.middleware.CorsMiddleware',
 ]
 
+
 ROOT_URLCONF = "nailo.urls"
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_ALL_ORIGINS = True
 
-#추후 아래 코드로 변경 예정
-# CORS_ALLOWED_ORIGINS = [
-#     'https://domain.com',
-# ]
+# 추후 아래 코드로 변경 예정
+CORS_ALLOWED_ORIGINS = [
+    'http://192.168.219.105:8000',
+]
 
 TEMPLATES = [
     {
