@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "nailo.settings")  
 django.setup()
 
-from nailo_BE.models import Shops 
+from nailo_be.models import Shops 
 
 # .env 파일에서 환경 변수 로드
 load_dotenv()
