@@ -34,11 +34,17 @@ class Designs(models.Model):
     design_name = models.CharField(max_length=255)                        
     price = models.IntegerField()                                         
     created_at = models.DateTimeField(auto_now_add=True)                 
-    design_url = models.URLField(max_length=500, blank=True, null=True)                                                
+    design_url = models.URLField(max_length=500, blank=True, null=True)
+    like_count = models.IntegerField(null=True)                                              
     is_active = models.BooleanField(default=True)                         
 
     def __str__(self):
         return self.design_name
+
+class Like(models.Model):
+    customer = models.ForeignKey('Customers', on_delete=models.CASCADE, related_name="like")
+    design = models.ForeignKey('Designs', on_delete=models.CASCADE, related_name="like")
+    liked_at = models.DateTimeField(auto_now_add=True)
 
 class Request(models.Model):
     STATUS_CHOICES = [
