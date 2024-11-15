@@ -103,7 +103,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="requests",
-                        to="nailo_BE.customers",
+                        to="nailo_be.customers",
                     ),
                 ),
                 (
@@ -111,7 +111,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="requests",
-                        to="nailo_BE.designs",
+                        to="nailo_be.designs",
                     ),
                 ),
                 (
@@ -119,7 +119,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="requests",
-                        to="nailo_BE.shops",
+                        to="nailo_be.shops",
                     ),
                 ),
             ],
@@ -139,14 +139,14 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="response",
-                        to="nailo_BE.customers",
+                        to="nailo_be.customers",
                     ),
                 ),
                 (
                     "request",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to="nailo_BE.request",
+                        to="nailo_be.request",
                     ),
                 ),
                 (
@@ -154,7 +154,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="response",
-                        to="nailo_BE.shops",
+                        to="nailo_be.shops",
                     ),
                 ),
             ],
@@ -163,7 +163,7 @@ class Migration(migrations.Migration):
             model_name="designs",
             name="shop",
             field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE, to="nailo_BE.shops"
+                on_delete=django.db.models.deletion.CASCADE, to="nailo_be.shops"
             ),
         ),
     ]

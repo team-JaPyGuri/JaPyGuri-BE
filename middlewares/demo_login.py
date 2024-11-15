@@ -1,5 +1,5 @@
 from django.contrib.auth import login
-from nailo_BE.models import Customers
+from nailo_be.models import Customers
 from django.utils.deprecation import MiddlewareMixin
 
 # 고객 기준 데모 로그인 미들웨어

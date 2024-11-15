@@ -11,7 +11,7 @@ from .models import Shops, Request, Response, Customers, Designs
 from nailo.asgi import application
 from .routing import websocket_urlpatterns
 
-logger = logging.getLogger('nailo_BE.consumers')
+logger = logging.getLogger('nailo_be.consumers')
 
 class WebSocketTests(ChannelsLiveServerTestCase):
     @classmethod
@@ -54,11 +54,11 @@ class WebSocketTests(ChannelsLiveServerTestCase):
         communicator = None
         try:
             # 로거 설정
-            logger = logging.getLogger('nailo_BE.consumers')
+            logger = logging.getLogger('nailo_be.consumers')
             logger.setLevel(logging.INFO)
 
             # 연결 전에 assertLogs 시작
-            with self.assertLogs('nailo_BE.consumers', level='INFO') as log:
+            with self.assertLogs('nailo_be.consumers', level='INFO') as log:
                 communicator = WebsocketCommunicator(
                     application,
                     f"/ws/shop/{self.shop.shop_key}/"

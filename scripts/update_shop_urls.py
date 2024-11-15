@@ -8,7 +8,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "nailo.settings")
 import django
 django.setup()
 
-from nailo_BE.models import Shops
+from nailo_be.models import Shops
 # URL 리스트 준비
 image_urls = [
     "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20230818_17%2F1692320629751Y8z8t_JPEG%2F1690633434499.jpg",

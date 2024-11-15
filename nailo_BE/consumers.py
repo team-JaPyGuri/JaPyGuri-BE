@@ -6,7 +6,7 @@ from channels.layers import get_channel_layer
 from .models import Request, Response, Designs, Shops, Customers
 from .serializers import RequestSerializer, ResponseSerializer, AddRequestSerializer, ResponseListSerializer
 
-logger = logging.getLogger('nailo_BE.consumers')
+logger = logging.getLogger('nailo_be.consumers')
 
 class NailServiceConsumer(AsyncWebsocketConsumer):
     async def connect(self):

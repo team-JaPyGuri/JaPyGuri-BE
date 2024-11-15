@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("nailo_BE", "0002_rename_design_image_designs_design_url_and_more"),
+        ("nailo_be", "0002_rename_design_image_designs_design_url_and_more"),
     ]
 
     operations = [
@@ -34,7 +34,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="like",
-                        to="nailo_BE.customers",
+                        to="nailo_be.customers",
                     ),
                 ),
                 (
@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="like",
-                        to="nailo_BE.designs",
+                        to="nailo_be.designs",
                     ),
                 ),
             ],

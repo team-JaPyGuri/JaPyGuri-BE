@@ -43,7 +43,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     'rest_framework',
-    'nailo_BE',
+    'nailo_be',
     'corsheaders',
     'drf_yasg',
     'channels',
