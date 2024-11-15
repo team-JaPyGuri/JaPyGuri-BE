@@ -1,14 +1,8 @@
 from django.contrib import admin
-from django.urls import path, re_path, include
-from rest_framework import permissions
-from rest_framework.routers import DefaultRouter
+from django.urls import path, re_path
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-from nailo_BE.views import *
-
-# DRF Router 설정
-router = DefaultRouter()
-router.register(r'api/nail-service', NailServiceViewSet, basename='nail-service')
+from nailo_BE.views import ShopListView
 
 # Swagger 설정
 schema_view = get_schema_view(
@@ -21,16 +15,13 @@ schema_view = get_schema_view(
         license=openapi.License(name="MIT License"),
     ),
     public=True,
-    permission_classes=(permissions.AllowAny,),
+    permission_classes=(),
 )
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    
-    # ViewSet URLs
-    path('', include(router.urls)),
-    path('api/shops/', ShopListView.as_view(), name='shop-list'),
-    
+    path('api/shops/', ShopListView.as_view(), name='shop-list'),  # 남겨둘 API 엔드포인트
+
     # Swagger documentation
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
