@@ -17,11 +17,19 @@ class AddRequestSerializer(serializers.ModelSerializer):
 class ResponseListSerializer(serializers.ModelSerializer):
     shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
     status = serializers.CharField(source='request.status', read_only=True)
-
+    request_key = serializers.UUIDField(source='request.request_key', read_only=True)
+    
     class Meta:
         model = Response
-        fields = ['response_key', 'shop_name', 'price', 'contents', 'status']
-
+        fields = [
+            'response_key',
+            'request_key',
+            'shop_name', 
+            'price', 
+            'contents', 
+            'status',
+        ]
+        
 class RequestSerializer(serializers.Serializer):
     design_key = serializers.UUIDField()
     customer_key = serializers.UUIDField()
@@ -29,6 +37,6 @@ class RequestSerializer(serializers.Serializer):
 
 class ResponseSerializer(serializers.Serializer):
     request_key = serializers.UUIDField()
-    response = serializers.ChoiceField(choices=['accepted', 'rejected'])
+    status = serializers.ChoiceField(choices=['accepted', 'rejected'])
     price = serializers.IntegerField(required=False)
     contents = serializers.CharField(required=False, default='')
