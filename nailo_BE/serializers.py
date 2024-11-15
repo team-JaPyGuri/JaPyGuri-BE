@@ -6,6 +6,11 @@ class ShopSerializer(serializers.ModelSerializer):
         model = Shops
         fields = ['shop_key', 'shop_name', 'shop_id', 'lat', 'lng', 'shop_url']
 
+class DesignSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Designs
+        fields = ['id', 'name', 'price', 'description', 'likes_count']
+        
 class AddRequestSerializer(serializers.ModelSerializer):
     shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
 
