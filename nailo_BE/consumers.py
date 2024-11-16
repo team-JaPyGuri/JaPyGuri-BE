@@ -17,14 +17,14 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             user_type = headers.get(b'x-user-type', b'').decode('utf-8')
             user_id = headers.get(b'x-user-id', b'').decode('utf-8')
 
-            # 사용자 객체 가져오기
-            user, user_type = await database_sync_to_async(get_user_by_type_and_id)(user_type, user_id)
-            self.user = user
-            self.user_type = user_type
-
             # 그룹 이름 설정
             self.group_name = f"{user_type}_{user_id}"
-
+            
+            # 사용자 객체 가져오기
+            user, user_type = await database_sync_to_async(get_user_id)(user_type, user_id)
+            self.user = user
+            self.user_type = user_type
+            
             # 그룹에 추가
             await self.channel_layer.group_add(
                 self.group_name,
