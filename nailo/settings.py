@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-x@bi@-e)o7_chbk9b3l16=807o4b%-n5!o4np2qm4ok^rx=da-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '192.168.219.105', 'cc98-58-29-182-183.ngrok-free.app']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '43.202.1.33:8000', 'cc98-58-29-182-183.ngrok-free.app']
 
 ASGI_APPLICATION = 'nailo.asgi.application'
 
@@ -69,7 +69,6 @@ ROOT_URLCONF = "nailo.urls"
 
 # 추후 아래 코드로 변경 예정
 CORS_ALLOWED_ORIGINS = [
-    'http://192.168.219.105:8000',
     'https://cc98-58-29-182-183.ngrok-free.app',
 ]
 
