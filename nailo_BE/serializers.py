@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Shops, Request, Response, Designs, Customers
+from .models import *
 
 class ShopSerializer(serializers.ModelSerializer):
     class Meta:
