@@ -19,7 +19,7 @@ class UserDetailView(APIView):
             user_id = request.headers.get('X-User-Id')
 
             # 사용자 객체 가져오기
-            user, user_type = get_user_by_type_and_id(user_type, user_id)
+            user, user_type = get_user_id(user_type, user_id)
 
             if user_type == 'customer':
                 return Response({'message': 'Customer data', 'data': {
