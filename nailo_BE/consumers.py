@@ -5,35 +5,48 @@ from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
 from .models import Request, Response, Designs, Shops, Customers
 from .serializers import RequestSerializer, ResponseSerializer, AddRequestSerializer, ResponseListSerializer
+from .utils import get_user_id
 
 logger = logging.getLogger('nailo_be.consumers')
 
 class NailServiceConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        """WebSocket 연결 시 실행"""
-        self.user_type = self.scope['url_route']['kwargs']['user_type']  # 'customer' or 'shop'
-        self.user_id = self.scope['url_route']['kwargs']['user_id']
-        
-        # 사용자 타입별 그룹 지정
-        self.group_name = f"{self.user_type}_{self.user_id}"
-        
-        # 그룹에 추가
-        await self.channel_layer.group_add(
-            self.group_name,
-            self.channel_name
-        )
-        await self.accept()
-        
-        logger.info(f"WebSocket connection established for user: {self.user_id}")
+        try:
+            # 헤더에서 사용자 타입과 ID 가져오기
+            headers = dict(self.scope['headers'])
+            user_type = headers.get(b'x-user-type', b'').decode('utf-8')
+            user_id = headers.get(b'x-user-id', b'').decode('utf-8')
 
-    async def disconnect(self, close_code):
-        """연결 종료 시 실행"""
-        if hasattr(self, 'group_name'):
-            await self.channel_layer.group_discard(
+            # 사용자 객체 가져오기
+            user, user_type = await database_sync_to_async(get_user_by_type_and_id)(user_type, user_id)
+            self.user = user
+            self.user_type = user_type
+
+            # 그룹 이름 설정
+            self.group_name = f"{user_type}_{user_id}"
+
+            # 그룹에 추가
+            await self.channel_layer.group_add(
                 self.group_name,
                 self.channel_name
             )
-            logger.info(f"WebSocket disconnected: {self.user_type} {self.user_id}")
+            await self.accept()
+
+            logger.info(f"WebSocket connection established for {user_type}: {user_id}")
+        except ValueError as e:
+            logger.error(f"WebSocket connection error: {str(e)}")
+            await self.close()
+        except Exception as e:
+            logger.error(f"Unexpected error during WebSocket connection: {str(e)}")
+            await self.close()
+
+    async def disconnect(self, close_code):
+        # 그룹에서 제거
+        await self.channel_layer.group_discard(
+            self.group_name,
+            self.channel_name
+        )
+        logger.info(f"WebSocket connection closed for {self.user_type}: {self.user.customer_id if self.user_type == 'customer' else self.user.shop_id}")
 
     async def receive(self, text_data):
         """클라이언트로부터 메시지 수신"""

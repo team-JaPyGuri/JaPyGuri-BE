@@ -1,7 +1,6 @@
 import sys
 import os
 
-# 프로젝트 루트를 Python 경로에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "nailo.settings")
 
@@ -9,7 +8,9 @@ import django
 django.setup()
 
 from nailo_be.models import Shops
-# URL 리스트 준비
+
+# 네일숍 이미지 url 변경 코드
+
 image_urls = [
     "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20230818_17%2F1692320629751Y8z8t_JPEG%2F1690633434499.jpg",
     "https://search.pstatic.net/common/?src=https%3A%2F%2Fldb-phinf.pstatic.net%2F20240825_224%2F1724557571825z2z65_JPEG%2F65F0353A-1E6E-4EEC-A02A-8E23A406D7C8.jpeg",
