@@ -11,10 +11,8 @@ django.setup()
 
 from nailo_be.models import Shops 
 
-# .env 파일에서 환경 변수 로드
 load_dotenv()
 
-# 네이버 API 설정 - 환경 변수에서 가져오기
 client_id = os.getenv("NAVER_CLIENT_ID")
 client_secret = os.getenv("NAVER_CLIENT_SECRET")
 search_url = "https://openapi.naver.com/v1/search/local.json"

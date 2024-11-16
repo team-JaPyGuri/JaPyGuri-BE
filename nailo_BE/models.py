@@ -46,6 +46,9 @@ class Like(models.Model):
     design = models.ForeignKey('Designs', on_delete=models.CASCADE, related_name="like")
     liked_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        unique_together = ('customer', 'design')
+        
 class Request(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),

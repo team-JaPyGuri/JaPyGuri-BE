@@ -9,7 +9,7 @@ class ShopSerializer(serializers.ModelSerializer):
 class DesignSerializer(serializers.ModelSerializer):
     class Meta:
         model = Designs
-        fields = ['id', 'name', 'price', 'description', 'likes_count']
+        fields = fields = ['design_key', 'design_name', 'price', 'like_count', 'is_active']
         
 class AddRequestSerializer(serializers.ModelSerializer):
     shop_name = serializers.CharField(source='shop.shop_name', read_only=True)

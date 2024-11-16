@@ -19,11 +19,12 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
-    path('api/shops/', ShopListView.as_view(), name='shop-list'),  # 남겨둘 API 엔드포인트
-    path('home/', HomePageView.as_view(), name='home'),  # 홈 페이지
-    path('like-list/', LikeListView.as_view(), name='like_list'),  # 좋아요 리스트
-    path('nail-design/<int:design_id>/', NailDesignDetailView.as_view(), name='nail_design_detail'), 
+    path("admin/", admin.site.urls), # 관리자 페이지
+    path('api/shops/', ShopListView.as_view(), name='shop-list'), # 네일샵 목록 반환
+    path('api/home/', HomePageView.as_view(), name='home'),  # 홈 페이지
+    path('api/like-list/', LikeListView.as_view(), name='like_list'),  # 좋아요 리스트
+    path('api/like-toggle/<uuid:design_key>/', LikeToggleView.as_view(), name='like_toggle'),  # 좋아요 토글
+    path('api/nail-design/<uuid:design_key>/', DesignDetailView.as_view(), name='nail_design_detail'), #네일 디자인 상세 페이지
     
     # Swagger documentation
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
