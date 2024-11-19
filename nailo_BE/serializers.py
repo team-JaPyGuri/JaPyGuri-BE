@@ -45,3 +45,8 @@ class ResponseSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=['accepted', 'rejected'])
     price = serializers.IntegerField(required=False)
     contents = serializers.CharField(required=False, default='')
+    
+class NailTryOnSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Customers
+        fields = ('id', 'generated_image')
