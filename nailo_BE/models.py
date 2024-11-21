@@ -27,7 +27,7 @@ class Customers(models.Model):
 
 class Designs(models.Model):
     design_key = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False, unique=True)    
-    shop = models.ForeignKey(Shops, to_field='shop_key', on_delete=models.CASCADE) 
+    shop = models.ForeignKey(Shops, to_field='shop_key', on_delete=models.PROTECT) 
     design_name = models.CharField(max_length=255)                        
     price = models.IntegerField()                                         
     created_at = models.DateTimeField(auto_now_add=True)                 
@@ -40,7 +40,7 @@ class Designs(models.Model):
 
 class Like(models.Model):
     customer = models.ForeignKey('Customers', on_delete=models.CASCADE, related_name="like")
-    design = models.ForeignKey('Designs', on_delete=models.CASCADE, related_name="like")
+    design = models.ForeignKey('Designs', on_delete=models.CASCADE, related_name="liked_design")
     liked_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

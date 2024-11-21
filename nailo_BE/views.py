@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response as DRFResponse
 from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser, FormParser
 
 from drf_yasg.utils import swagger_auto_schema
@@ -49,12 +50,16 @@ class UserDetailView(APIView):
     )
     def get(self, request, *args, **kwargs):
         try:
-            # 헤더에서 사용자 타입과 ID 가져오기
-            user_type = request.headers.get('X-User-Type')
-            user_id = request.headers.get('X-User-Id')
+            user_type_header = request.headers.get("X-User-Type")
+            user_id = request.headers.get("X-User-Id")
 
-            # 사용자 객체 가져오기
-            user, user_type = get_user_id(user_type, user_id)
+            if not user_type_header or not user_id:
+                return DRFResponse({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
+
+            user, user_type = get_user_id(user_type_header, user_id)
+            # 만약 packing 관련 오류라면 둘 중 하나가 invalid
+            if not user or user_type != "customer":
+                return DRFResponse({"error": "유효하지 않은 사용자입니다."}, status=403)
 
             if user_type == 'customer':
                 return Response({'message': 'Customer data', 'data': {
@@ -69,16 +74,69 @@ class UserDetailView(APIView):
         except ValueError as e:
             return Response({'error': str(e)}, status=400)
         
+class HomePagePagination(PageNumberPagination):
+    page_size = 10 
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class HomePageView(APIView):
     @swagger_auto_schema(
-        operation_description="스냅에 들어갈 9개의 네일 디자인을 반환합니다.",
-        responses={200: DesignSerializer(many=True)}
+        operation_description="홈 화면: 랜덤 디자인 반환 또는 전체 디자인의 페이지네이션 반환",
+        manual_parameters=[
+            openapi.Parameter(
+                'type',
+                openapi.IN_QUERY,
+                description="'random' (9개) 또는 'all' (스냅 페이지네이션)",
+                type=openapi.TYPE_STRING,
+                required=False,
+            ),
+            openapi.Parameter(
+                'page',
+                openapi.IN_QUERY,
+                description="페이지 번호 (type=all일 때 필요)",
+                type=openapi.TYPE_INTEGER,
+                required=False,
+            ),
+        ],
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    "results": openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_OBJECT)),
+                    "count": openapi.Schema(type=openapi.TYPE_INTEGER),
+                    "next": openapi.Schema(type=openapi.TYPE_STRING),
+                    "previous": openapi.Schema(type=openapi.TYPE_STRING),
+                }
+            ),
+            400: "Invalid 'type' parameter",
+        },
     )
     def get(self, request, *args, **kwargs):
-        designs = Designs.objects.all()
+        # 쿼리 파라미터 확인
+        query_type = request.query_params.get('type', 'random')  # 기본값은 'random'
+        designs = Designs.objects.filter(is_active=True).order_by('-created_at')
+
+        if query_type == 'random':
+            return self._get_random_designs(designs)
+
+        elif query_type == 'all':
+            return self._get_paginated_designs(designs, request)
+
+        return DRFResponse({"error": "Invalid 'type' parameter. Use 'random' or 'all'."}, status=400)
+
+    def _get_random_designs(self, designs):
+        """HotNailList-랜덤 9개 디자인 반환"""
         random_designs = random.sample(list(designs), min(len(designs), 9))
         serializer = DesignSerializer(random_designs, many=True)
         return DRFResponse(serializer.data)
+
+    def _get_paginated_designs(self, designs, request):
+        """스냅-전체 디자인 반환 (페이지네이션)"""
+        paginator = HomePagePagination()
+        paginated_designs = paginator.paginate_queryset(designs, request, view=self)
+        serializer = DesignSerializer(paginated_designs, many=True)
+        return paginator.get_paginated_response(serializer.data)
     
 class LikeListView(APIView):
     @swagger_auto_schema(
@@ -91,20 +149,22 @@ class LikeListView(APIView):
     )
     def get(self, request, *args, **kwargs):
         # 현재 사용자 기반 좋아요 리스트
-        user_type = request.headers.get('X-User-Type')
-        user_id = request.headers.get('X-User-Id')
-        if not user_type or not user_id:
-            return DRFResponse({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
-        
-        customer = get_user_id(user_type, user_id)
+        user_type_header = request.headers.get("X-User-Type")
+        user_id = request.headers.get("X-User-Id")
 
-        if customer is None:
+        if not user_type_header or not user_id:
+            return DRFResponse({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
+
+        user, user_type = get_user_id(user_type_header, user_id)
+        if not user or user_type != "customer":
             return DRFResponse({"error": "유효하지 않은 사용자입니다."}, status=403)
 
-        liked_designs = Like.objects.filter(customer=customer)
-        if not liked_designs.exists():  # 좋아요 내역이 없는 경우
-            return DRFResponse({"message": "좋아요 내역이 없습니다."}, status=200)
+        customer = user
         
+        liked_designs = Like.objects.filter(customer=customer)
+        if not liked_designs.exists():
+            return DRFResponse({"message": "좋아요 내역이 없습니다."}, status=200)
+
         designs = [like.design for like in liked_designs]
         serializer = DesignSerializer(designs, many=True)
         return DRFResponse(serializer.data, status=200)
@@ -138,15 +198,18 @@ class LikeToggleView(APIView):
     )
     def post(self, request, design_key, *args, **kwargs):
         """좋아요 토글 기능"""
-        user_type = request.headers.get('X-User-Type')
-        user_id = request.headers.get('X-User-Id')
-        if not user_type or not user_id:
+        user_type_header = request.headers.get("X-User-Type")
+        user_id = request.headers.get("X-User-Id")
+
+        if not user_type_header or not user_id:
             return DRFResponse({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
 
-        customer = get_user_id(user_type, user_id)
-        if customer is None:
-            return DRFResponse({"error": "유효하지 않은 사용자입니다."}, status=404)
+        user, user_type = get_user_id(user_type_header, user_id)
+        if not user or user_type != "customer":
+            return DRFResponse({"error": "유효하지 않은 사용자입니다."}, status=403)
 
+        customer = user
+        
         try:
             design = Designs.objects.get(pk=design_key)
         except Designs.DoesNotExist:
@@ -225,16 +288,16 @@ class NailTryOnView(APIView):
     )
     
     def post(self, request, *args, **kwargs):
-        user_type = request.headers.get('X-User-Type')
-        user_id = request.headers.get('X-User-Id')
+        user_type_header = request.headers.get("X-User-Type")
+        user_id = request.headers.get("X-User-Id")
 
-        if not user_type or not user_id:
-            return Response({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
-        try:
-            customer = get_user_id(user_type, user_id)  
-        except Customer.DoesNotExist:
-            return Response({"error": "사용자를 찾을 수 없습니다."}, status=404)
+        if not user_type_header or not user_id:
+            return DRFResponse({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
 
+        user, user_type = get_user_id(user_type_header, user_id)
+        if not user or user_type != "customer":
+            return DRFResponse({"error": "유효하지 않은 사용자입니다."}, status=403)
+            
         image = request.FILES.get('image')
         if not image:
             return Response({"error": "이미지가 필요합니다."}, status=400)
