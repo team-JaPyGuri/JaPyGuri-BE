@@ -64,21 +64,6 @@ Response Format:
 주변 네일샵 정보를 조회합니다.
 
 Response Format:
-{
-    "type": "shop_list",
-    "shops": [
-        {
-            "shop_key": str,
-            "shop_name": str,
-            "shop_id": str,
-            "lat": float,
-            "lng": float,
-            "shop_url": str
-        }
-    ]
-}
-
-Response Format:
 ```json
 {
   "type": "shop_list",
