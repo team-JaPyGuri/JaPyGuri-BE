@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Dict, Any
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
@@ -10,18 +11,28 @@ from .utils import get_user_id
 logger = logging.getLogger('nailo_be.consumers')
 
 class NailServiceConsumer(AsyncWebsocketConsumer):
-    async def connect(self):
+    url_pattern = 'ws/(?P<user_type>customer|shop)/(?P<user_id>[^/]+)/'
+    """네일 서비스 WebSocket Consumer"""
+    
+    async def connect(self) -> None:
+        """
+        WebSocket 연결을 처리합니다.
+        
+        Headers:
+        - x-user-type: "customer" | "shop"
+        - x-user-id: str
+        """
         try:
             # 헤더에서 사용자 타입과 ID 가져오기
             headers = dict(self.scope['headers'])
-            user_type = headers.get(b'x-user-type', b'').decode('utf-8')
-            user_id = headers.get(b'x-user-id', b'').decode('utf-8')
+            user_type_headers = headers.get(b'x-user-type', b'').decode('utf-8')
+            user_id_headers = headers.get(b'x-user-id', b'').decode('utf-8')
 
             # 그룹 이름 설정
             self.group_name = f"{user_type}_{user_id}"
             
             # 사용자 객체 가져오기
-            user, user_type = await database_sync_to_async(get_user_id)(user_type, user_id)
+            user, user_type = await database_sync_to_async(get_user_id)(user_type_headers, user_id_headers)
             self.user = user
             self.user_type = user_type
             
@@ -41,15 +52,23 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             await self.close()
 
     async def disconnect(self, close_code):
-        # 그룹에서 제거
+        """WebSocket 연결 종료를 처리합니다."""
         await self.channel_layer.group_discard(
             self.group_name,
             self.channel_name
         )
         logger.info(f"WebSocket connection closed for {self.user_type}: {self.user.customer_id if self.user_type == 'customer' else self.user.shop_id}")
 
-    async def receive(self, text_data):
-        """클라이언트로부터 메시지 수신"""
+    async def receive(self, text_data: str) -> None:
+        """
+        클라이언트로부터 WebSocket 메시지를 수신하고 처리합니다.
+        
+        Expected Format:
+        {
+            "action": str,  # "nearby_shops" | "request_service" | "respond_service" | "get_responses"
+            ... action별 추가 데이터
+        }
+        """
         try:
             data = json.loads(text_data)
             action = data.get("action")
@@ -75,8 +94,25 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 "error": str(e)
             }))
 
-    async def handle_nearby_shops(self, data):
-        """활성화된 모든 네일샵 정보 제공"""
+    async def handle_nearby_shops(self, data: Dict[str, Any]) -> None:
+        """
+        주변 네일샵 정보를 조회합니다.
+        
+        Response Format:
+        {
+            "type": "shop_list",
+            "shops": [
+                {
+                    "shop_key": str,
+                    "shop_name": str,
+                    "shop_id": str,
+                    "lat": float,
+                    "lng": float,
+                    "shop_url": str
+                }
+            ]
+        }
+        """
         try:
             # 활성화된 모든 샵 조회
             shops = await database_sync_to_async(list)(
@@ -107,8 +143,24 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 "error": str(e)
             }))
         
-    async def handle_service_request(self, data):
-        """시술 요청 처리"""
+    async def handle_service_request(self, data: Dict[str, Any]) -> None:
+        """
+        시술 요청을 처리합니다.
+        
+        Expected Format:
+        {
+            "customer_key": str,
+            "design_key": str,
+            "contents": str
+        }
+
+        Response Format:
+        {
+            "type": "completed_request",
+            "status": "pending",
+            "message": str
+        }
+        """
         try:
             serializer = RequestSerializer(data=data)
             if not serializer.is_valid():
@@ -165,8 +217,29 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 "error": str(e)
             }))
 
-    async def handle_service_response(self, data):
-        """시술 응답 처리"""
+    async def handle_service_response(self, data: Dict[str, Any]) -> None:
+        """
+        시술 요청에 대한 응답을 처리합니다.
+        
+        Expected Format:
+        {
+            "request_key": str,
+            "status": "accepted" | "rejected",
+            "price": int,
+            "contents": str
+        }
+
+        Response Format:
+        {
+            "type": "completed_response",
+            "status": str,
+            "response_data": {
+                "shop_name": str,
+                "price": int,
+                "contents": str
+            }
+        }
+        """
         try:
             serializer = ResponseSerializer(data=data)
             if not serializer.is_valid():
@@ -233,39 +306,79 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 "error": "Request not found"
             }))
             
-    async def notify_customer_request_sent(self, event):
-        """1. 고객의 요청이 정상적으로 전송되었음을 고객에게 알림"""
+    async def notify_customer_request_sent(self, event: Dict[str, Any]) -> None:
+        """고객의 요청이 정상적으로 전송되었음을 고객에게 알림"""
         await self.send(text_data=json.dumps({
             "type": "completed_request",
             "status": "pending",
             "request_data": event["response_data"]
         }))
 
-    async def notify_shop_response_sent(self, event):
-        """2. 샵의 응답이 정상적으로 전송되었음을 샵에게 알림"""
+    async def notify_shop_response_sent(self, event: Dict[str, Any]) -> None:
+        """샵의 응답이 정상적으로 전송되었음을 샵에게 알림"""
         await self.send(text_data=json.dumps({
             "type": "completed_response",
             "status": event["status"],
             "response_data": event["response_data"]
         }))
 
-    async def notify_shop_new_request(self, event):
-        """3. 고객의 요청이 도착했음을 샵에게 알림"""
+    async def notify_shop_new_request(self, event: Dict[str, Any]) -> None:
+        """고객의 요청이 도착했음을 샵에게 알림"""
         await self.send(text_data=json.dumps({
             "type": "new_request",
             "request_key": event["request_key"]
         }))
 
-    async def notify_customer_new_response(self, event):
-        """4. 샵의 응답이 도착했음을 고객에게 알림"""
+    async def notify_customer_new_response(self, event: Dict[str, Any]) -> None:
+        """샵의 응답이 도착했음을 고객에게 알림"""
         await self.send(text_data=json.dumps({
             "type": "new_response",
             "shop_name": event["shop_name"],
             "request_key": event["request_key"]
         }))
         
-    async def handle_get_responses(self, data):
-        """디자인별 응답 목록 조회"""
+    async def handle_get_responses(self, data: Dict[str, Any]) -> None:
+        """
+        디자인별 응답 목록을 조회합니다.
+        
+        Expected Format:
+        {
+            "customer_key": str
+        }
+
+        Response Format:
+        {
+            "type": "response_list",
+            "designs": [
+                {
+                    "design_key": str,
+                    "design_name": str,
+                    "shop_requests": [
+                        {
+                            "shop_name": str,
+                            "request_details": [
+                                {
+                                    "request_key": str,
+                                    "status": str,
+                                    "created_at": str,
+                                    "request": {
+                                        "price": int,
+                                        "contents": str
+                                    },
+                                    "response": {
+                                        "response_key": str,
+                                        "price": int,
+                                        "contents": str,
+                                        "created_at": str
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        """
         try:
             customer_key = data.get('customer_key')
             if not customer_key:
