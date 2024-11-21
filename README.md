@@ -78,6 +78,23 @@ Response Format:
     ]
 }
 
+Response Format:
+```json
+{
+  "type": "shop_list",
+  "shops": [
+    {
+      "shop_key": "<string>",
+      "shop_name": "<string>",
+      "shop_id": "<string>",
+      "lat": 0.0,
+      "lng": 0.0,
+      "shop_url": "<string>"
+    }
+  ]
+}
+```
+
 
 #### service_request
 시술 요청을 처리합니다.

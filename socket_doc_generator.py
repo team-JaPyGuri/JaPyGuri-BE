@@ -103,17 +103,24 @@ class WebSocketDocGenerator:
         if not doc:
             return
 
+        description = doc
         expected_format = None
         response_format = None
 
         if "Expected Format:" in doc:
-            parts = doc.split("Expected Format:")
-            desc_and_format = parts[1].split("Response Format:") if "Response Format:" in parts[1] else [parts[1]]
-            expected_format = self._parse_json_from_docstring(desc_and_format[0])
+            description, format_part = doc.split("Expected Format:", 1)
+            if "Response Format:" in format_part:
+                expected_part, response_part = format_part.split("Response Format:", 1)
+                expected_format = self._parse_json_from_docstring(expected_part)
+                response_format = self._parse_json_from_docstring(response_part)
+            else:
+                expected_format = self._parse_json_from_docstring(format_part)
+        
+        # Response Format만 있는 경우
+        elif "Response Format:" in doc:
+            description, response_part = doc.split("Response Format:", 1)
+            response_format = self._parse_json_from_docstring(response_part)
             
-            if len(desc_and_format) > 1:
-                response_format = self._parse_json_from_docstring(desc_and_format[1])
-
         action_info = {
             'name': name.replace('handle_', ''),
             'description': doc.split("Expected Format:")[0].strip() if "Expected Format:" in doc else doc,
@@ -185,11 +192,14 @@ class WebSocketDocGenerator:
                 md_content += json.dumps(action['expected_format'], indent=2)
                 md_content += "\n```\n\n"
             
-            if action.get('response_format'):
+            if 'response_format' in action:  # response_format이 None이어도 처리
                 md_content += "Response Format:\n```json\n"
-                md_content += json.dumps(action['response_format'], indent=2)
+                if isinstance(action['response_format'], (dict, list)):
+                    md_content += json.dumps(action['response_format'], indent=2)
+                else:
+                    md_content += str(action['response_format']).strip()
                 md_content += "\n```\n\n"
-
+                
         # Notifications 문서화
         if self.docs['notifications']:
             md_content += "\n### Notifications\n"
