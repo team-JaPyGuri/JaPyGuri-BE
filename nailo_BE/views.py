@@ -62,24 +62,35 @@ class UserDetailView(APIView):
                 return DRFResponse({"error": "유효하지 않은 사용자입니다."}, status=403)
 
             if user_type == 'customer':
-                return Response({'message': 'Customer data', 'data': {
+                return DRFResponse({'message': 'Customer data', 'data': {
                     'customer_id': user.customer_id,
                     'customer_name': user.customer_name,
                 }})
             elif user_type == 'shop':
-                return Response({'message': 'Shop data', 'data': {
+                return DRFResponse({'message': 'Shop data', 'data': {
                     'shop_id': user.shop_id,
                     'shop_name': user.shop_name,
                 }})
         except ValueError as e:
-            return Response({'error': str(e)}, status=400)
+            return DRFResponse({'error': str(e)}, status=400)
         
 class HomePagePagination(PageNumberPagination):
     page_size = 10 
     page_size_query_param = 'page_size'
     max_page_size = 100
 
-
+    def get_paginated_response(self, data):
+        return DRFResponse({
+            'links': {
+                'next': self.get_next_link(),
+                'previous': self.get_previous_link()
+            },
+            'count': self.page.paginator.count,
+            'total_pages': self.page.paginator.num_pages,
+            'current_page': self.page.number,
+            'results': data
+        })
+        
 class HomePageView(APIView):
     @swagger_auto_schema(
         operation_description="홈 화면: 랜덤 디자인 반환 또는 전체 디자인의 페이지네이션 반환",
@@ -256,99 +267,124 @@ class ShopListView(APIView):
         serializer = ShopSerializer(shops, many=True) 
         return DRFResponse(serializer.data)
     
-class NailTryOnView(APIView):
-    parser_classes = (MultiPartParser, FormParser)
+# class NailTryOnView(APIView):
+#     parser_classes = (MultiPartParser, FormParser)
 
-    @swagger_auto_schema(
-        operation_description="Upload a hand image and apply a nail design using an AI model.",
-        
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                'image': openapi.Schema(
-                    type=openapi.TYPE_FILE,
-                    description="Hand image to be processed"
-                ),
-            },
-            required=['image'],
-        ),
-        responses={
-            200: openapi.Response(
-                description="Successfully applied nail design",
-                examples={
-                    "application/json": {
-                        "message": "네일 디자인이 적용된 이미지를 생성했습니다.",
-                        "image_url": "/media/generated_images/123_generated.jpg"
-                    }
-                }
-            ),
-            400: openapi.Response(description="Bad request or missing fields"),
-            500: openapi.Response(description="Server error"),
-        }
-    )
+#     @swagger_auto_schema(
+#         operation_description="Upload a hand image and apply a nail design using an AI model.",
+#         manual_parameters=[  # 헤더 파라미터 추가
+#             openapi.Parameter(
+#                 'X-User-Type',
+#                 openapi.IN_HEADER,
+#                 description="유저 타입 ('customer' or 'shop')",
+#                 type=openapi.TYPE_STRING,
+#                 required=True
+#             ),
+#             openapi.Parameter(
+#                 'X-User-Id',
+#                 openapi.IN_HEADER,
+#                 description="Unique identifier for the user",
+#                 type=openapi.TYPE_STRING,
+#                 required=True
+#             ),
+#         ],
+#         request_body=openapi.Schema(
+#             type=openapi.TYPE_OBJECT,
+#             properties={
+#                 'image': openapi.Schema(
+#                     type=openapi.TYPE_FILE,
+#                     description="Hand image to be processed"
+#                 ),
+#                 'design_key': openapi.Schema(  # 디자인 키 파라미터 추가
+#                     type=openapi.TYPE_STRING,
+#                     description="Nail design key to apply"
+#                 ),
+#             },
+#             required=['image', 'design_key'],
+#         ),
+#         responses={
+#             200: openapi.Response(
+#                 description="Successfully applied nail design",
+#                 schema=openapi.Schema(
+#                     type=openapi.TYPE_OBJECT,
+#                     properties={
+#                         'message': openapi.Schema(type=openapi.TYPE_STRING),
+#                         'image_url': openapi.Schema(type=openapi.TYPE_STRING)
+#                     }
+#                 )
+#             ),
+#             400: "Bad Request - Missing image or invalid parameters",
+#             403: "Forbidden - Invalid user",
+#             500: "Internal Server Error - AI model processing failed"
+#         }
+#     )
     
-    def post(self, request, *args, **kwargs):
-        user_type_header = request.headers.get("X-User-Type")
-        user_id = request.headers.get("X-User-Id")
+#     def post(self, request, *args, **kwargs):
+#         user_type_header = request.headers.get("X-User-Type")
+#         user_id = request.headers.get("X-User-Id")
+#         design_key = request.data.get('design_key')
+        
+#         if not user_type_header or not user_id:
+#             return DRFResponse({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
 
-        if not user_type_header or not user_id:
-            return DRFResponse({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
-
-        user, user_type = get_user_id(user_type_header, user_id)
-        if not user or user_type != "customer":
-            return DRFResponse({"error": "유효하지 않은 사용자입니다."}, status=403)
+#         user, user_type = get_user_id(user_type_header, user_id)
+#         if not user or user_type != "customer":
+#             return DRFResponse({"error": "유효하지 않은 사용자입니다."}, status=403)
             
-        image = request.FILES.get('image')
-        if not image:
-            return Response({"error": "이미지가 필요합니다."}, status=400)
+#         image = request.FILES.get('image')
+#         if not image:
+#             return DRFResponse({"error": "이미지가 필요합니다."}, status=400)
         
-        model_url = "" # 추후 변경 필요 !!!
+#         if not design_key:
+#                 return DRFResponse({"error": "디자인 키가 필요합니다."}, status=400)
+            
+#         model_url = "" # 추후 변경 필요 !!!
         
-        # 모델 서버에 요청
-        try:
-            files = {'image': image_file}  # 이미지 파일 포함
-            response = requests.post(model_url, files=files)
+#         # 모델 서버에 요청
+#         try:
+#             files = {'image': image_file}  # 이미지 파일 포함
+#             response = requests.post(model_url, files=files)
 
-            if response.status_code != 200:
-                return Response({"error": "AI 모델 서버에서 오류가 발생했습니다."}, status=500)
+#             if response.status_code != 200:
+#                 return DRFResponse({"error": "AI 모델 서버에서 오류가 발생했습니다."}, status=500)
 
-            # 처리된 이미지 데이터 수신
-            response_data = response.json()
-            processed_image_data = response_data.get('image')
+#             # 처리된 이미지 데이터 수신
+#             response_data = response.json()
+#             processed_image_data = response_data.get('image')
 
-            if not processed_image_data:
-                return Response({"error": "AI 모델 서버로부터 이미지를 받을 수 없습니다."}, status=500)
+#             if not processed_image_data:
+#                 return DRFResponse({"error": "AI 모델 서버로부터 이미지를 받을 수 없습니다."}, status=500)
 
-        except Exception as e:
-            return Response({"error": f"AI 모델 서버와 통신 중 오류 발생: {str(e)}"}, status=500)
+#         except Exception as e:
+#             return DRFResponse({"error": f"AI 모델 서버와 통신 중 오류 발생: {str(e)}"}, status=500)
         
-        try:
-            processed_image = apply_nail_design(uploaded_image)
-        except Exception as e:
-            return Response({"error": f"AI 모델 호출 중 오류 발생: {str(e)}"}, status=500)
+#         try:
+#             processed_image = apply_nail_design(uploaded_image)
+#         except Exception as e:
+#             return DRFResponse({"error": f"AI 모델 호출 중 오류 발생: {str(e)}"}, status=500)
 
-         # 처리된 이미지 저장
-        try:
-            output_image = f"generated_images/{user_id}_generated.jpg"
-            output_path = os.path.join(settings.MEDIA_ROOT, output_image)
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)  # 디렉토리 생성
+#          # 처리된 이미지 저장
+#         try:
+#             output_image = f"generated_images/{user_id}_generated.jpg"
+#             output_path = os.path.join(settings.MEDIA_ROOT, output_image)
+#             os.makedirs(os.path.dirname(output_path), exist_ok=True)  # 디렉토리 생성
 
-            # 수신된 이미지 데이터를 저장
-            image_data = BytesIO()
-            image_data.write(processed_image_data.encode('latin1'))  # 모델 서버에서 받은 데이터를 디코딩
-            image_data.seek(0)
+#             # 수신된 이미지 데이터를 저장
+#             image_data = BytesIO()
+#             image_data.write(processed_image_data.encode('latin1'))  # 모델 서버에서 받은 데이터를 디코딩
+#             image_data.seek(0)
 
-            with open(output_path, 'wb') as f:
-                f.write(image_data.read())
+#             with open(output_path, 'wb') as f:
+#                 f.write(image_data.read())
 
-            # URL 저장
-            customer.generated_image = default_storage.url(output_image)
-            customer.save()
+#             # URL 저장
+#             customer.generated_image = default_storage.url(output_image)
+#             customer.save()
 
-        except Exception as e:
-            return Response({"error": f"이미지를 저장하는 중 오류 발생: {str(e)}"}, status=500)
+#         except Exception as e:
+#             return DRFResponse({"error": f"이미지를 저장하는 중 오류 발생: {str(e)}"}, status=500)
 
-        return Response({
-            "message": "입혀보기 이미지를 생성했습니다.",
-            "image_url": customer.generated_image
-        }, status=200)
+#         return DRFResponse({
+#             "message": "입혀보기 이미지를 생성했습니다.",
+#             "image_url": customer.generated_image
+#         }, status=200)
