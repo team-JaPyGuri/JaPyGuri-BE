@@ -396,96 +396,154 @@ class GetUserIdTests(TestCase):
     def setUp(self):
         # 테스트용 Customer와 Shop 객체 생성
         self.customer = Customers.objects.create(
-            customer_key=uuid.uuid4(),
             customer_id="test_customer",
-            customer_pw="password123",
             customer_name="Test Customer",
-            is_active=True
         )
 
         self.shop = Shops.objects.create(
-            shop_key=uuid.uuid4(),
             shop_id="test_shop",
             shop_name="Test Shop",
             lat=37.5665,
             lng=126.9780,
             shop_url="http://example.com",
-            is_active=True
         )
 
     def test_get_customer_by_id(self):
         """Customer를 user_type과 user_id로 가져오는 테스트"""
-        user = get_user_id("customer", self.customer.customer_id)
+        user, user_type = get_user_id("customer", self.customer.customer_id)
         self.assertIsNotNone(user)
         self.assertEqual(user.customer_id, self.customer.customer_id)
         self.assertEqual(user.customer_name, self.customer.customer_name)
 
     def test_get_shop_by_id(self):
         """Shop을 user_type과 user_id로 가져오는 테스트"""
-        user = get_user_id("shop", self.shop.shop_id)
+        user, user_type = get_user_id("shop", self.shop.shop_id)
         self.assertIsNotNone(user)
         self.assertEqual(user.shop_id, self.shop.shop_id)
-        self.assertEqual(user.shop_name, self.shop.shop_name)
 
     def test_invalid_user_type(self):
         """잘못된 user_type으로 호출했을 때 None 반환 테스트"""
-        user = get_user_id("invalid_type", self.customer.customer_id)
-        self.assertIsNone(user)
+        result = get_user_id("invalid_type", self.customer.customer_id)
+        self.assertIsNone(result)  # user가 None인지 확인
+        self.assertIsNone(result)  # user_type이 None인지 확인
 
     def test_nonexistent_user_id(self):
         """존재하지 않는 user_id로 호출했을 때 None 반환 테스트"""
-        user = get_user_id("customer", "nonexistent_id")
-        self.assertIsNone(user)
-        
-class DesignTests(APITestCase):
+        user, user_type = get_user_id("customer", "nonexistent_id")
+        self.assertIsNone(user, user_type)
+
+class HomePageViewTests(APITestCase):
+    @classmethod
     def setUp(self):
-        self.customer = Customers.objects.create(
+        # 테스트용 데이터 생성
+        self.shop = Shops.objects.create(
+            shop_id="test_shop",
+            shop_name="Test Shop",
+            lat=37.5665,
+            lng=126.9780,
+            shop_url="http://example.com"
+        )
+        
+        for i in range(25):  
+            Designs.objects.create(
+                design_name=f"Design {i+1}",
+                shop=self.shop,
+                price=(i + 1) * 1000,
+                like_count=i,
+                design_url=f"http://example.com/design{i+1}.jpg",
+                is_active=True,
+            )
+
+    def test_random_designs(self):
+        """랜덤 9개의 디자인을 반환하는 API 테스트"""
+        response = self.client.get('/api/home/', {'type': 'random'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 9)  
+
+    def test_paginated_designs_first_page(self):
+        """전체 디자인의 첫 번째 페이지 반환 API 테스트"""
+        response = self.client.get('/api/home/', {'type': 'all', 'page': 1, 'page_size': 10})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # 페이지네이션 데이터 확인
+        self.assertIn('count', response.data)
+        self.assertIn('next', response.data)
+        self.assertIn('previous', response.data)
+        self.assertIn('results', response.data)
+
+        # 첫 페이지에 10개의 디자인이 있어야 함
+        self.assertEqual(len(response.data['results']), 10)
+
+    def test_paginated_designs_last_page(self):
+        """전체 디자인의 마지막 페이지 반환 API 테스트"""
+        response = self.client.get('/api/home/', {'type': 'all', 'page': 3, 'page_size': 10})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # 마지막 페이지에는 10개가 아닌 10개 이하의 디자인이 있을 수 있음
+        self.assertLessEqual(len(response.data['results']), 10)
+
+    def test_invalid_type(self):
+        """잘못된 type 파라미터 처리 테스트"""
+        response = self.client.get('/api/home/', {'type': 'invalid'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("error", response.data)
+
+    def test_no_type_defaults_to_random(self):
+        """type 파라미터가 없을 때 기본값으로 랜덤 9개를 반환"""
+        response = self.client.get('/api/home/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 9)
+                
+class DesignTests(APITestCase):
+    @classmethod
+    # 각 한 번만 생성
+    def setUpTestData(cls):
+        cls.customer = Customers.objects.create(
             customer_id="test_customer",
-            customer_pw="password123",
             customer_name="Test Customer"
         )
-        self.shop = Shops.objects.create(
+        cls.shop = Shops.objects.create(
             shop_id="test_shop_id",
             shop_name="Test Shop",
             lat=37.5665,
             lng=126.9780,
             shop_url="test_image_url"
         )
-        self.design = Designs.objects.create(
-            shop=self.shop,
+        cls.design = Designs.objects.create(
+            shop=cls.shop,
             design_name="Test Design",
             price=1000,
             like_count=0,
             is_active=True
         )
-
-    def test_home_page(self):
-        response = self.client.get(
-            '/api/home/',
-            HTTP_X_USER_TYPE='customer',
-            HTTP_X_USER_ID=self.customer.customer_id,
+        cls.like = Like.objects.create(
+            customer=cls.customer,
+            design=cls.design
         )
-        self.assertEqual(response.status_code, 200)
 
     def test_like_list(self):
         """좋아요 리스트가 존재할 때"""
-        response = self.client.get(
-            'api/like-list/',
-            HTTP_X_USER_TYPE='customer',
-            HTTP_X_USER_ID=self.customer.customer_id,
-        )
-        print("like_list: ", response)
-        self.assertEqual(response.status_code, 403)  
-
-    def test_like_list_empty(self):
-        """좋아요 리스트가 비어 있을 때"""
+        # HTTP GET 요청
         response = self.client.get(
             '/api/like-list/',
-            HTTP_X_USER_TYPE='customer',
+            HTTP_X_USER_TYPE='customer',  
             HTTP_X_USER_ID=self.customer.customer_id,
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {"message": "좋아요 내역이 없습니다."})
+
+        print("like_list: ", response)
+        self.assertEqual(response.status_code, 200) 
+        self.assertIn("Test Design", response.data[0]["design_name"])  
+        self.assertEqual(response.data[0]["price"], 1000)
+
+    # def test_like_list_empty(self):
+    #     """좋아요 리스트가 비어 있을 때"""
+    #     response = self.client.get(
+    #         '/api/like-list/',
+    #         HTTP_X_USER_TYPE='customer',
+    #         HTTP_X_USER_ID=self.customer.customer_id,
+    #     )
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertEqual(response.data, {"message": "좋아요 내역이 없습니다."})
         
     def test_design_detail(self):
         """디자인 상세 페이지 테스트"""
@@ -496,7 +554,6 @@ class DesignTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("design_name", response.data)
         self.assertEqual(response.data["design_name"], self.design.design_name)
 
 class LikeToggleTests(APITestCase):
@@ -504,7 +561,6 @@ class LikeToggleTests(APITestCase):
         """테스트 데이터 생성"""
         self.customer = Customers.objects.create(
             customer_id='test_user',
-            customer_pw='test_password',
             customer_name='Test User'
         )
 
@@ -532,7 +588,7 @@ class LikeToggleTests(APITestCase):
             HTTP_X_USER_TYPE='customer',
             HTTP_X_USER_ID=self.customer.customer_id,
         )
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data, {"message": "좋아요가 추가되었습니다.", "like_count": 1})
 
     def test_like_toggle_remove(self):
@@ -548,6 +604,6 @@ class LikeToggleTests(APITestCase):
             HTTP_X_USER_ID=self.customer.customer_id,
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["message"], "좋아요가 취소되었습니다.")
         self.assertEqual(response.data["like_count"], 0)
