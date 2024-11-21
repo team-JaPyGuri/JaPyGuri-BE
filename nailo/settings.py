@@ -27,7 +27,7 @@ SECRET_KEY = "django-insecure-x@bi@-e)o7_chbk9b3l16=807o4b%-n5!o4np2qm4ok^rx=da-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '43.202.1.33', 'cc98-58-29-182-183.ngrok-free.app']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '43.202.1.33', 'cc98-58-29-182-183.ngrok-free.app', ]
 
 ASGI_APPLICATION = 'nailo.asgi.application'
 
@@ -79,7 +79,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    # 'middlewares.demo_login.DemoLoginMiddleware',  # 여기에 배치
+    # 'middlewares.demo_login.DemoLoginMiddleware',  
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     'corsheaders.middleware.CorsMiddleware',
@@ -93,6 +93,7 @@ ROOT_URLCONF = "nailo.urls"
 # 추후 아래 코드로 변경 예정
 CORS_ALLOWED_ORIGINS = [
     'https://cc98-58-29-182-183.ngrok-free.app',
+    'https://nailo-dev.netlify.app',
 ]
 
 TEMPLATES = [
