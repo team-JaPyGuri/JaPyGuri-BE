@@ -32,7 +32,8 @@ class Designs(models.Model):
     price = models.IntegerField()                                         
     created_at = models.DateTimeField(auto_now_add=True)                 
     design_url = models.URLField(max_length=500, blank=True, null=True)
-    like_count = models.IntegerField(null=True)                                              
+    like_count = models.IntegerField(null=True)
+    tag = models.CharField(max_length=50, blank=True, null=True)                                         
     is_active = models.BooleanField(default=True)                         
 
     def __str__(self):
