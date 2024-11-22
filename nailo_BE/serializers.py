@@ -9,7 +9,7 @@ class ShopSerializer(serializers.ModelSerializer):
 class DesignSerializer(serializers.ModelSerializer):
     class Meta:
         model = Designs
-        fields = fields = ['design_key', 'design_name', 'price', 'like_count', 'is_active']
+        fields = fields = ['design_key', 'design_name', 'design_url', 'price', 'like_count', 'is_active']
         
 class AddRequestSerializer(serializers.ModelSerializer):
     shop_name = serializers.CharField(source='shop.shop_name', read_only=True)
@@ -36,9 +36,10 @@ class ResponseListSerializer(serializers.ModelSerializer):
         ]
         
 class RequestSerializer(serializers.Serializer):
-    design_key = serializers.UUIDField()
-    customer_key = serializers.UUIDField()
-    contents = serializers.CharField(required=False, default='')
+    design_key = serializers.UUIDField(required=True)
+    customer_key = serializers.UUIDField(required=True)
+    shop_key = serializers.UUIDField(required=True)
+    contents = serializers.CharField(required=False, allow_blank=True, default='')
 
 class ResponseSerializer(serializers.Serializer):
     request_key = serializers.UUIDField()

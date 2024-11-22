@@ -3,7 +3,7 @@
 
 ### Connection URL Pattern
 ```
-ws/(?P<user_type>customer|shop)/(?P<user_id>[^/]+)/
+ws/<path>
 ```
 
 ### Connection Information
@@ -17,12 +17,44 @@ WebSocket 연결을 처리합니다.
 #### get_responses
 디자인별 응답 목록을 조회합니다.
 
-Expected Format:
-```json
 {
-  "customer_key": "<string>"
+    "action": "get_responses"
+    "data":{
+        "customer_key": str
+    }
 }
-```
+Response Format:
+{
+    "type": "response_list",
+    "designs": [
+        {
+            "design_key": str,
+            "design_name": str,
+            "shop_requests": [
+                {
+                    "shop_name": str,
+                    "request_details": [
+                        {
+                            "request_key": str,
+                            "status": str,
+                            "created_at": str,
+                            "request": {
+                                "price": int,
+                                "contents": str
+                            },
+                            "response": {
+                                "response_key": str,
+                                "price": int,
+                                "contents": str,
+                                "created_at": str
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
 
 Response Format:
 ```json
@@ -64,6 +96,21 @@ Response Format:
 주변 네일샵 정보를 조회합니다.
 
 Response Format:
+{
+    "type": "shop_list",
+    "shops": [
+        {
+            "shop_key": str,
+            "shop_name": str,
+            "shop_id": str,
+            "lat": float,
+            "lng": float,
+            "shop_url": str
+        }
+    ]
+}
+
+Response Format:
 ```json
 {
   "type": "shop_list",
@@ -87,9 +134,13 @@ Response Format:
 Expected Format:
 ```json
 {
-  "customer_key": "<string>",
-  "design_key": "<string>",
-  "contents": "<string>"
+  "action": "request_service",
+  "data": {
+    "customer_key": "<string>",
+    "design_key": "<string>",
+    "shop_key": "<string>",
+    "contents": "<string>"
+  }
 }
 ```
 
@@ -109,10 +160,7 @@ Response Format:
 Expected Format:
 ```json
 {
-  "request_key": "<string>",
-  "status": "<accepted or rejected>",
-  "price": 0,
-  "contents": "<string>"
+  "error": "Invalid JSON format"
 }
 ```
 

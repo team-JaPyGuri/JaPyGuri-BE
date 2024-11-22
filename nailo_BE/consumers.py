@@ -11,7 +11,7 @@ from .utils import get_user_id
 logger = logging.getLogger('nailo_be.consumers')
 
 class NailServiceConsumer(AsyncWebsocketConsumer):
-    url_pattern = 'ws/(?P<user_type>customer|shop)/(?P<user_id>[^/]+)/'
+
     """네일 서비스 WebSocket Consumer"""
     
     async def connect(self) -> None:
@@ -23,19 +23,25 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         - x-user-id: str
         """
         try:
-            # 헤더에서 사용자 타입과 ID 가져오기
-            headers = dict(self.scope['headers'])
-            user_type_headers = headers.get(b'x-user-type', b'').decode('utf-8')
-            user_id_headers = headers.get(b'x-user-id', b'').decode('utf-8')
-
+            self.user_type = self.scope['url_route']['kwargs']['user_type']
+            self.user_id = self.scope['url_route']['kwargs']['user_id']
+            
+            logger.info(f"Connection attempt: user_type={self.user_type}, user_id={self.user_id}")
+            
             # 그룹 이름 설정
-            self.group_name = f"{user_type}_{user_id}"
+            self.group_name = f"{self.user_type}_{self.user_id}"
             
             # 사용자 객체 가져오기
-            user, user_type = await database_sync_to_async(get_user_id)(user_type_headers, user_id_headers)
+            user, user_type = await database_sync_to_async(get_user_id)(self.user_type, self.user_id)
             self.user = user
             self.user_type = user_type
             
+            # 고객 또는 샵의 key값 가져오기
+            if self.user_type == "customer":
+                self.customer_key = self.user.customer_key    
+            elif self.user_type == "shop":          
+                self.shop_key = self.user.shop_key            
+                
             # 그룹에 추가
             await self.channel_layer.group_add(
                 self.group_name,
@@ -43,7 +49,17 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             )
             await self.accept()
 
-            logger.info(f"WebSocket connection established for {user_type}: {user_id}")
+            # 연결 성공 시 프론트에 알림
+            if self.user_type == "customer":
+                await self.send(text_data=json.dumps({
+                    "message": f"Connected as customer: {self.user}, key={self.customer_key}"
+                }))
+                logger.info(f"Connected to customer: {self.user}, key={self.customer_key}")
+            elif self.user_type == "shop":
+                await self.send(text_data=json.dumps({
+                    "message": f"Connected as shop: {self.user}, key={self.shop_key}"
+                }))
+                logger.info(f"Connected to shop: {self.user}, key={self.shop_key}")
         except ValueError as e:
             logger.error(f"WebSocket connection error: {str(e)}")
             await self.close()
@@ -133,10 +149,12 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 shop['lat'] = float(shop['lat'])
                 shop['lng'] = float(shop['lng'])
 
+            print("Processed shops data:", shops)
+            
             await self.send(text_data=json.dumps({
                 "type": "shop_list",
                 "shops": shops
-            }))
+            }, ensure_ascii=False))
 
         except Exception as e:
             await self.send(text_data=json.dumps({
@@ -149,11 +167,15 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         
         Expected Format:
         {
-            "customer_key": str,
-            "design_key": str,
-            "contents": str
+            "action": "request_service",
+            "data": {
+                "customer_key": str,
+                "design_key": str,
+                "shop_key": str,
+                "contents": str
+            }
         }
-
+        
         Response Format:
         {
             "type": "completed_request",
@@ -162,7 +184,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         }
         """
         try:
-            serializer = RequestSerializer(data=data)
+            serializer = RequestSerializer(data=data.get('data', {}))
             if not serializer.is_valid():
                 await self.send(text_data=json.dumps({
                     "error": serializer.errors
@@ -176,7 +198,10 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             design = await database_sync_to_async(Designs.objects.get)(
                 design_key=serializer.validated_data['design_key']
             )
-            shop = await database_sync_to_async(lambda: design.shop)()
+            shop = await database_sync_to_async(Shops.objects.get)(
+                shop_key=serializer.validated_data['shop_key']
+            )
+
 
             # Request 생성
             request = await database_sync_to_async(Request.objects.create)(
@@ -212,6 +237,12 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({
                 "error": str(e)
             }))
+        
+        except Shops.DoesNotExist:
+            await self.send(text_data=json.dumps({
+                "error": "Invalid shop_key: Shop not found"
+            }))
+            return
         except Exception as e:
             await self.send(text_data=json.dumps({
                 "error": str(e)
@@ -223,12 +254,15 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         
         Expected Format:
         {
-            "request_key": str,
-            "status": "accepted" | "rejected",
-            "price": int,
-            "contents": str
+            "action": "respond_service"
+            "data":{
+                "request_key": str,
+                "status": "accepted" | "rejected",
+                "price": int,
+                "contents": str
+            }
         }
-
+        
         Response Format:
         {
             "type": "completed_response",
@@ -341,11 +375,12 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         """
         디자인별 응답 목록을 조회합니다.
         
-        Expected Format:
         {
-            "customer_key": str
+            "action": "get_responses"
+            "data":{
+                "customer_key": str
+            }
         }
-
         Response Format:
         {
             "type": "response_list",
@@ -380,10 +415,10 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         }
         """
         try:
-            customer_key = data.get('customer_key')
+            customer_key = data.get('data', {}).get('customer_key')
             if not customer_key:
                 await self.send(text_data=json.dumps({
-                    "error": "Customer key is required"
+                    "error": "customer key is required"
                 }))
                 return
 
