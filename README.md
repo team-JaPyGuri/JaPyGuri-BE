@@ -1,14 +1,12 @@
-# JaPyGuri-BE
+# Project Name
+
 ## WebSocket API Documentation
 
 ### Connection URL Pattern
-```
 ws/<path>
-```
 
 ### Connection Information
 WebSocket 연결을 처리합니다.
-
 - x-user-type: "customer" | "shop"
 - x-user-id: str
 
@@ -17,44 +15,15 @@ WebSocket 연결을 처리합니다.
 #### get_responses
 디자인별 응답 목록을 조회합니다.
 
+Expected Format:
+```json
 {
     "action": "get_responses"
     "data":{
         "customer_key": str
     }
 }
-Response Format:
-{
-    "type": "response_list",
-    "designs": [
-        {
-            "design_key": str,
-            "design_name": str,
-            "shop_requests": [
-                {
-                    "shop_name": str,
-                    "request_details": [
-                        {
-                            "request_key": str,
-                            "status": str,
-                            "created_at": str,
-                            "request": {
-                                "price": int,
-                                "contents": str
-                            },
-                            "response": {
-                                "response_key": str,
-                                "price": int,
-                                "contents": str,
-                                "created_at": str
-                            }
-                        }
-                    ]
-                }
-            ]
-        }
-    ]
-}
+```
 
 Response Format:
 ```json
@@ -91,24 +60,8 @@ Response Format:
 }
 ```
 
-
 #### nearby_shops
 주변 네일샵 정보를 조회합니다.
-
-Response Format:
-{
-    "type": "shop_list",
-    "shops": [
-        {
-            "shop_key": str,
-            "shop_name": str,
-            "shop_id": str,
-            "lat": float,
-            "lng": float,
-            "shop_url": str
-        }
-    ]
-}
 
 Response Format:
 ```json
@@ -127,7 +80,6 @@ Response Format:
 }
 ```
 
-
 #### service_request
 시술 요청을 처리합니다.
 
@@ -143,7 +95,6 @@ Expected Format:
   }
 }
 ```
-
 Response Format:
 ```json
 {
@@ -153,17 +104,21 @@ Response Format:
 }
 ```
 
-
 #### service_response
 시술 요청에 대한 응답을 처리합니다.
 
 Expected Format:
 ```json
 {
-  "error": "Invalid JSON format"
+  "action": "respond_service",
+  "data": {
+    "request_key": "<string>",
+    "status": "accepted" | "rejected",
+    "price": 0,
+    "contents": "<string>"
+  }
 }
 ```
-
 Response Format:
 ```json
 {
@@ -177,24 +132,21 @@ Response Format:
 }
 ```
 
-
 ### Notifications
 
 #### customer_new_response
 샵의 응답이 도착했음을 고객에게 알림
-
 Format:
 ```json
 {
   "type": "new_response",
-  "shop_name": "Shop Name",
-  "request_key": "request-123"
+  "shop_name": "<string>",
+  "request_key": "<string>"
 }
 ```
 
 #### customer_request_sent
 고객의 요청이 정상적으로 전송되었음을 고객에게 알림
-
 Format:
 ```json
 {
@@ -208,18 +160,16 @@ Format:
 
 #### shop_new_request
 고객의 요청이 도착했음을 샵에게 알림
-
 Format:
 ```json
 {
   "type": "new_request",
-  "request_key": "request-123"
+  "request_key": "<string>"
 }
 ```
 
 #### shop_response_sent
 샵의 응답이 정상적으로 전송되었음을 샵에게 알림
-
 Format:
 ```json
 {
