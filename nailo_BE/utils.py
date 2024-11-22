@@ -1,4 +1,7 @@
 from .models import Customers, Shops
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_user_id(user_type, user_id):
     """
@@ -7,9 +10,22 @@ def get_user_id(user_type, user_id):
     try:
         if user_type == 'customer':
             user = Customers.objects.get(customer_id=user_id)
-            return (user, 'customer') 
+            logger.info(f"Found customer: {user_id}")
+            return (user, 'customer')
+        
         elif user_type == 'shop':
             user = Shops.objects.get(shop_id=user_id)
-            return (user, 'shop')  
-    except (Customers.DoesNotExist, Shops.DoesNotExist):
-        return None, None 
+            logger.info(f"Found shop: {user_id}")
+            return (user, 'shop')
+        
+        else:
+            logger.error(f"Invalid user_type provided: {user_type}")
+            return None, None
+        
+    except (Customers.DoesNotExist, Shops.DoesNotExist) as e:
+        logger.error(f"User not found: {str(e)}")
+        return None, None
+    
+    except Exception as e:
+        logger.error(f"Unexpected error in get_user_id: {str(e)}")
+        return None, None
