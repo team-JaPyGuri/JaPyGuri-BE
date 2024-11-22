@@ -202,7 +202,6 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 shop_key=serializer.validated_data['shop_key']
             )
 
-
             # Request 생성
             request = await database_sync_to_async(Request.objects.create)(
                 customer=customer,
@@ -254,7 +253,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         
         Expected Format:
         {
-            "action": "respond_service"
+            "action": "respond_service",
             "data":{
                 "request_key": str,
                 "status": "accepted" | "rejected",
@@ -275,6 +274,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         }
         """
         try:
+            data = data.get('data', {})
             serializer = ResponseSerializer(data=data)
             if not serializer.is_valid():
                 await self.send(text_data=json.dumps({
