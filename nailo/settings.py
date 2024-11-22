@@ -89,12 +89,40 @@ MIDDLEWARE = [
 ROOT_URLCONF = "nailo.urls"
 
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://43.202.1.33:8000",
+    'http://nailo-dev.netlify.app',
+]
 
-# 추후 아래 코드로 변경 예정
-# CORS_ALLOWED_ORIGINS = [
-#     'https://cc98-58-29-182-183.ngrok-free.app',
-#     'https://nailo-dev.netlify.app',
-# ]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://\w+\.localhost:5173$",
+
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-user-type',
+    'x-user-id',
+]
 
 TEMPLATES = [
     {
