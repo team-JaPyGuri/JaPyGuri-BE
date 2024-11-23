@@ -28,8 +28,7 @@ urlpatterns = [
     path('api/like-list/', LikeListView.as_view(), name='like_list'),  # 사용자 좋아요 리스트 반환
     path('api/like-toggle/<uuid:design_key>/', LikeToggleView.as_view(), name='like_toggle'),  # 좋아요 토글 기능
     path('api/nail-design/<uuid:design_key>/', DesignDetailView.as_view(), name='nail_design_detail'), #네일 디자인 상세 페이지
-    # path('api/nail_try_on/', NailTryOnView.as_view(), name='nail_try_on'), # 네일 입혀보기
-    
+
     # Swagger documentation
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
