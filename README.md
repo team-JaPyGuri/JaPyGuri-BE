@@ -3,7 +3,7 @@
 ## WebSocket API Documentation
 
 ### Connection URL Pattern
-ws/<path>
+ws/<user_type>/<user_id>
 
 ### Connection Information
 WebSocket 연결을 처리합니다.
@@ -11,54 +11,6 @@ WebSocket 연결을 처리합니다.
 - x-user-id: str
 
 ### Available Actions
-
-#### get_responses
-디자인별 응답 목록을 조회합니다.
-
-Expected Format:
-```json
-{
-    "action": "get_responses"
-    "data":{
-        "customer_key": str
-    }
-}
-```
-
-Response Format:
-```json
-{
-  "type": "response_list",
-  "designs": [
-    {
-      "design_key": "<string>",
-      "design_name": "<string>",
-      "shop_requests": [
-        {
-          "shop_name": "<string>",
-          "request_details": [
-            {
-              "request_key": "<string>",
-              "status": "<string>",
-              "created_at": "<string>",
-              "request": {
-                "price": 0,
-                "contents": "<string>"
-              },
-              "response": {
-                "response_key": "<string>",
-                "price": 0,
-                "contents": "<string>",
-                "created_at": "<string>"
-              }
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}
-```
 
 #### nearby_shops
 주변 네일샵 정보를 조회합니다.
@@ -69,7 +21,7 @@ Response Format:
   "type": "shop_list",
   "shops": [
     {
-      "shop_key": "<string>",
+      "shop_key": "<uuid>",
       "shop_name": "<string>",
       "shop_id": "<string>",
       "lat": 0.0,
@@ -88,9 +40,9 @@ Expected Format:
 {
   "action": "request_service",
   "data": {
-    "customer_key": "<string>",
-    "design_key": "<string>",
-    "shop_key": "<string>",
+    "customer_key": "<uuid>",
+    "design_key": "<uuid>",
+    "shop_key": "<uuid>",
     "contents": "<string>"
   }
 }
@@ -112,9 +64,9 @@ Expected Format:
 {
   "action": "respond_service",
   "data": {
-    "request_key": "<string>",
-    "status": "accepted" | "rejected",
-    "price": 0,
+    "request_key": "<uuid>",
+    "status": "accepted | rejected",
+    "price": "<int>",
     "contents": "<string>"
   }
 }
@@ -126,9 +78,102 @@ Response Format:
   "status": "<string>",
   "response_data": {
     "shop_name": "<string>",
-    "price": 0,
+    "price": "<int>",
     "contents": "<string>"
   }
+}
+```
+#### get_responses
+고객 화면에서 디자인별 응답 목록을 조회합니다.
+
+Expected Format:
+```json
+{
+    "action": "get_responses",
+    "data":{
+        "customer_key": "<uuid>",
+    }
+}
+```
+
+Response Format:
+```json
+{
+  "type": "response_list",
+  "designs": [
+    {
+      "design_key": "<uuid>",
+      "design_name": "<string>",
+      "shop_requests": [
+        {
+          "shop_name": "<string>",
+          "request_details": [
+            {
+              "request_key": "<uuid>",
+              "status": "accepted | rejected",
+              "created_at": "<DATETIME>",
+              "request": {
+                "price": "<int>",
+                "contents": "<string>"
+              },
+              "response": {
+                "response_key": "<uuid>",
+                "price": "<int>",
+                "contents": "<string>",
+                "created_at": "<DATETIME>"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+### get_requests
+샵 화면에서 고객의 요청 목록을 조회합니다.
+Expected Format:
+```json
+{
+    "action": "get_requests",
+    "data": {
+        "shop_key": "<uuid>"
+    }
+}
+
+Response Format:
+{
+    "type": "request_list",
+    "requests": [
+        {
+            "request_key": "<uuid>",
+            "customer_name": "<string>",
+            "design_name": "<string>",
+            "status": "<string>",
+            "created_at": "<DATETIME>",
+            "price": "<int>",
+            "contents": "<string>"
+        }
+    ]
+}
+```
+
+**Response Format:**
+```json
+{
+  "type": "request_list",
+  "requests": [
+    {
+      "request_key": "<uuid>",
+      "customer_name": "<string>",
+      "design_name": "<string>",
+      "status": "<string>",
+      "created_at": "<DATETIME>",
+      "price": "<int>",
+      "contents": "<string>"
+    }
+  ]
 }
 ```
 
