@@ -131,7 +131,7 @@ Response Format:
 }
 ```
 
-### get_requests
+#### get_requests
 샵 화면에서 고객의 요청 목록을 조회합니다.
 
 Expected Format:
@@ -166,6 +166,7 @@ Response Format:
 
 #### customer_new_response
 샵의 응답이 도착했음을 고객에게 알림
+
 Format:
 ```json
 {
@@ -177,6 +178,7 @@ Format:
 
 #### customer_request_sent
 고객의 요청이 정상적으로 전송되었음을 고객에게 알림
+
 Format:
 ```json
 {
@@ -190,6 +192,7 @@ Format:
 
 #### shop_new_request
 고객의 요청이 도착했음을 샵에게 알림
+
 Format:
 ```json
 {
@@ -200,6 +203,7 @@ Format:
 
 #### shop_response_sent
 샵의 응답이 정상적으로 전송되었음을 샵에게 알림
+
 Format:
 ```json
 {
