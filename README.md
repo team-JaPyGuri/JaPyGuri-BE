@@ -133,6 +133,7 @@ Response Format:
 
 ### get_requests
 샵 화면에서 고객의 요청 목록을 조회합니다.
+
 Expected Format:
 ```json
 {
@@ -141,8 +142,10 @@ Expected Format:
         "shop_key": "<uuid>"
     }
 }
+```
 
 Response Format:
+```json
 {
     "type": "request_list",
     "requests": [
@@ -156,24 +159,6 @@ Response Format:
             "contents": "<string>"
         }
     ]
-}
-```
-
-**Response Format:**
-```json
-{
-  "type": "request_list",
-  "requests": [
-    {
-      "request_key": "<uuid>",
-      "customer_name": "<string>",
-      "design_name": "<string>",
-      "status": "<string>",
-      "created_at": "<DATETIME>",
-      "price": "<int>",
-      "contents": "<string>"
-    }
-  ]
 }
 ```
 
