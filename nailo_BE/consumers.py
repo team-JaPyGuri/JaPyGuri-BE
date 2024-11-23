@@ -53,16 +53,19 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             if self.user_type == "customer":
                 await self.send(text_data=json.dumps({
                     "message": f"Connected as customer: {self.user}, key={self.customer_key}"
-                }))
+                }, ensure_ascii=False))
                 logger.info(f"Connected to customer: {self.user}, key={self.customer_key}")
+            
             elif self.user_type == "shop":
                 await self.send(text_data=json.dumps({
                     "message": f"Connected as shop: {self.user}, key={self.shop_key}"
-                }))
+                }, ensure_ascii=False))
                 logger.info(f"Connected to shop: {self.user}, key={self.shop_key}")
+        
         except ValueError as e:
             logger.error(f"WebSocket connection error: {str(e)}")
             await self.close()
+        
         except Exception as e:
             logger.error(f"Unexpected error during WebSocket connection: {str(e)}")
             await self.close()
@@ -97,10 +100,12 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 await self.handle_service_response(data)
             elif action == "get_responses":
                 await self.handle_get_responses(data)
+            elif action == "get_requests": 
+                await self.handle_get_requests(data)
             else:
                 await self.send(text_data=json.dumps({
                     "error": f"Unknown action: {action}"
-                }))
+                }, ensure_ascii=False))
         except json.JSONDecodeError:
             await self.send(text_data=json.dumps({
                 "error": "Invalid JSON format"
@@ -230,7 +235,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 "type": "completed_request",
                 "status": "pending",
                 "message": "시술 요청이 완료되었습니다."
-            }))
+            }, ensure_ascii=False))
 
         except (Customers.DoesNotExist, Designs.DoesNotExist) as e:
             await self.send(text_data=json.dumps({
@@ -240,7 +245,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         except Shops.DoesNotExist:
             await self.send(text_data=json.dumps({
                 "error": "Invalid shop_key: Shop not found"
-            }))
+            }, ensure_ascii=False))
             return
         except Exception as e:
             await self.send(text_data=json.dumps({
@@ -291,7 +296,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             if response_status not in ['accepted', 'rejected']:
                 await self.send(text_data=json.dumps({
                     "error": "Invalid response status"
-                }))
+                }, ensure_ascii=False))
                 return
 
             # Request 상태 업데이트
@@ -323,7 +328,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 "type": "completed_response",
                 "status": response_status,
                 "response_data": response_data
-            }))
+            }, ensure_ascii=False))
 
             # 2. 고객에게 새 응답 알림 
             await self.channel_layer.group_send(
@@ -346,7 +351,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             "type": "completed_request",
             "status": "pending",
             "request_data": event["response_data"]
-        }))
+        }, ensure_ascii=False))
 
     async def notify_shop_response_sent(self, event: Dict[str, Any]) -> None:
         """샵의 응답이 정상적으로 전송되었음을 샵에게 알림"""
@@ -354,14 +359,14 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             "type": "completed_response",
             "status": event["status"],
             "response_data": event["response_data"]
-        }))
+        }, ensure_ascii=False))
 
     async def notify_shop_new_request(self, event: Dict[str, Any]) -> None:
         """고객의 요청이 도착했음을 샵에게 알림"""
         await self.send(text_data=json.dumps({
             "type": "new_request",
             "request_key": event["request_key"]
-        }))
+        }, ensure_ascii=False))
 
     async def notify_customer_new_response(self, event: Dict[str, Any]) -> None:
         """샵의 응답이 도착했음을 고객에게 알림"""
@@ -369,7 +374,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             "type": "new_response",
             "shop_name": event["shop_name"],
             "request_key": event["request_key"]
-        }))
+        }, ensure_ascii=False))
         
     async def handle_get_responses(self, data: Dict[str, Any]) -> None:
         """
@@ -479,7 +484,71 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({
                 "type": "response_list",
                 "designs": formatted_designs
+            }, ensure_ascii=False))
+
+        except Exception as e:
+            await self.send(text_data=json.dumps({
+                "error": str(e)
             }))
+    
+    async def handle_get_requests(self, data: Dict[str, Any]) -> None:
+        """
+        샵 화면에서 고객의 요청 목록을 조회합니다.
+
+        {
+            "action": "get_requests",
+            "data": {
+                "shop_key": str
+            }
+        }
+        
+        Response Format:
+        {
+            "type": "request_list",
+            "requests": [
+                {
+                    "request_key": str,
+                    "customer_name": str,
+                    "design_name": str,
+                    "status": str,
+                    "created_at": str,
+                    "price": int,
+                    "contents": str
+                }
+            ]
+        }
+        """
+        try:
+            shop_key = data.get('data', {}).get('shop_key')
+            if not shop_key:
+                await self.send(text_data=json.dumps({
+                    "error": "shop key is required"
+                }))
+                return
+
+            # 모든 요청 조회
+            requests = Request.objects.filter(
+                shop__shop_key=shop_key
+            ).select_related('customer', 'design')
+            
+            requests = await database_sync_to_async(list)(requests)
+
+            formatted_requests = []
+            for request in requests:
+                formatted_requests.append({
+                    "request_key": str(request.request_key),
+                    "customer_name": request.customer.customer_name,
+                    "design_name": request.design.design_name,
+                    "status": request.status,
+                    "created_at": request.created_at.isoformat(),
+                    "price": request.price,
+                    "contents": request.contents
+                })
+
+            await self.send(text_data=json.dumps({
+                "type": "request_list",
+                "requests": formatted_requests
+            }, ensure_ascii=False))
 
         except Exception as e:
             await self.send(text_data=json.dumps({
