@@ -22,7 +22,8 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-    path("admin/", admin.site.urls), # 관리자 페이지
+    path("admin/", admin.site.urls), # 관리자 페이지,
+    path('api/user-detail/', UserDetailView.as_view(), name='user-detail'),
     path('api/shops/', ShopListView.as_view(), name='shop-list'), # 네일샵 목록 반환
     path('api/home/', HomePageView.as_view(), name='home'),  # 홈 페이지
     path('api/like-list/', LikeListView.as_view(), name='like_list'),  # 사용자 좋아요 리스트 반환

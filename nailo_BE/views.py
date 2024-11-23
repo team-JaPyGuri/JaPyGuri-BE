@@ -52,7 +52,6 @@ class UserDetailView(APIView):
         try:
             user_type_header = request.headers.get("X-User-Type")
             user_id = request.headers.get("X-User-Id")
-
             if not user_type_header or not user_id:
                 return DRFResponse({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
 
