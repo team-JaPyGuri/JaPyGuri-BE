@@ -27,7 +27,7 @@ SECRET_KEY = "django-insecure-x@bi@-e)o7_chbk9b3l16=807o4b%-n5!o4np2qm4ok^rx=da-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '43.202.1.33', 'cc98-58-29-182-183.ngrok-free.app', ]
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '43.202.1.33', '301a-211-117-82-98.ngrok-free.app', ]
 
 ASGI_APPLICATION = 'nailo.asgi.application'
 
@@ -56,7 +56,7 @@ REST_FRAMEWORK = {
 }
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-MEDIA_URL = '/media/'
+MEDIA_URL = 'media/'
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -92,8 +92,10 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
+    "http://localhost:8000",
     "http://43.202.1.33:8000",
     'http://nailo-dev.netlify.app',
+    "https://301a-211-117-82-98.ngrok-free.app",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [

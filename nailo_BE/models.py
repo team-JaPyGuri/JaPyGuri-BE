@@ -76,3 +76,12 @@ class Response(models.Model):
 
     def __str__(self):
         return f"Response {self.response_key} to Request {self.request}"
+    
+class TryOnHistory(models.Model):
+    user = models.ForeignKey(Customers, on_delete=models.CASCADE)
+    original_image = models.ImageField(upload_to='tryon/original/')
+    predicted_image = models.ImageField(upload_to='tryon/predicted/')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"History for {self.user.customer_name} at {self.created_at}"
