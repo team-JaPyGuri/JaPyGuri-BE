@@ -1,3 +1,6 @@
+import os
+from django.conf import settings
+
 from rest_framework import viewsets, status
 from rest_framework.response import Response as DRFResponse
 from rest_framework.views import APIView
@@ -11,6 +14,7 @@ from .serializers import *
 from .models import *
 from .utils import get_user_id
 
+import requests
 import random
 
 class UserDetailView(APIView):
@@ -265,3 +269,126 @@ class ShopListView(APIView):
         shops = Shops.objects.all()
         serializer = ShopSerializer(shops, many=True) 
         return DRFResponse(serializer.data)
+
+class TryOnView(APIView):
+    @swagger_auto_schema(
+        operation_summary="Try On",
+        operation_description="사용자가 이미지를 업로드하고 FastAPI 모델 서버를 호출하여 예측된 이미지를 반환받습니다.",
+        responses={
+            200: openapi.Response(
+                description="성공적으로 처리된 응답",
+                examples={
+                    "application/json": {
+                        "message": "이미지 처리 완료",
+                        "received_image": "uploaded_images/15257_35734_0936.jpg",
+                        "predicted_image": "predicted_images/predicted_15257_35734_0936.jpg",
+                    }
+                },
+            ),
+            400: "잘못된 요청",
+            500: "서버 오류",
+        },
+    )
+    def post(self, request):
+        if 'image' not in request.FILES:
+            return DRFResponse({"error": "No image file provided"}, status=400)
+        
+        image = request.FILES['image']
+
+        # FastAPI 서버 URL
+        model_server_url = "https://301a-211-117-82-98.ngrok-free.app/predict"
+        files = {'image': image}
+        try:
+            response = requests.post(model_server_url, files=files)
+            response_data = response.json()
+
+            if response.status_code != 200:
+                return DRFResponse({"error": response_data.get("error", "Unknown error")}, status=response.status_code)
+
+            original_image_path = response_data.get("received_image")
+            predicted_image_path = response_data.get("predicted_image")
+
+            user_type = request.headers.get("X-User-Type")
+            user_id = request.headers.get("X-User-Id")
+
+            if not user_type or not user_id or user_type != "customer":
+                return DRFResponse({"error": "Invalid user headers"}, status=400)
+
+            try:
+                customer = Customers.objects.get(customer_id=user_id)
+            except Customers.DoesNotExist:
+                return DRFResponse({"error": "User not found"}, status=404)
+
+            TryOnHistory.objects.create(
+                user=customer,
+                original_image=original_image_path,  
+                predicted_image=predicted_image_path  
+            )
+
+            return DRFResponse({
+                "message": response_data.get("message", "이미지 처리 완료"),
+                "received_image": original_image_path,
+                "predicted_image": predicted_image_path,
+            }, status=200)
+        except Exception as e:
+            return DRFResponse({"error": str(e)}, status=500)
+
+class TryOnHistoryView(APIView):
+    @swagger_auto_schema(
+        operation_summary="Try On History",
+        operation_description="사용자의 네일 입혀보기 기록을 반환합니다.",
+        responses={
+            200: openapi.Response(
+                description="히스토리 반환",
+                examples={
+                    "application/json": [
+                        {
+                            "original_image": "http://127.0.0.1:8001/media/tryon/original/15257_35734_0936.jpg",
+                            "predicted_image": "http://127.0.0.1:8001/media/tryon/predicted/predicted_15257_35734_0936.jpg",
+                            "created_at": "2024-11-25T06:03:26.350928Z",
+                        }
+                    ]
+                },
+            ),
+            400: "잘못된 요청",
+            404: "사용자 없음",
+        },
+    )
+    def get(self, request):
+        user_type = request.headers.get("X-User-Type")
+        user_id = request.headers.get("X-User-Id")
+
+        if not user_type or not user_id or user_type != "customer":
+            return DRFResponse({"error": "Invalid user headers"}, status=400)
+
+        try:
+            customer = Customers.objects.get(customer_id=user_id)
+        except Customers.DoesNotExist:
+            return DRFResponse({"error": "User not found"}, status=404)
+
+        history = TryOnHistory.objects.filter(user=customer).order_by('-created_at')
+        data = []
+        for item in history:
+            try:
+                original_image_url = (
+                    request.build_absolute_uri(item.original_image.url)
+                    if item.original_image else None
+                )
+                predicted_image_url = (
+                    request.build_absolute_uri(item.predicted_image.url)
+                    if item.predicted_image else None
+                )
+                data.append({
+                    "original_image": original_image_url,
+                    "predicted_image": predicted_image_url,
+                    "created_at": item.created_at,
+                })
+            except Exception as e:
+                data.append({
+                    "original_image": None,
+                    "predicted_image": None,
+                    "created_at": item.created_at,
+                    "error": str(e)
+                })
+        return DRFResponse(data, status=200)
+
