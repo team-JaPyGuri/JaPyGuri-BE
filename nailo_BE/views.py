@@ -234,12 +234,12 @@ class LikeToggleView(APIView):
         if not created:
             # 좋아요 취소
             like.delete()
-            design.like_count = Like.objects.filter(design=design).count()
+            design.like_count = design.like_count = design.like_count - 1
             design.save()
             return DRFResponse({"message": "좋아요가 취소되었습니다.", "like_count": design.like_count}, status=status.HTTP_200_OK)
 
         # 좋아요 추가
-        design.like_count = Like.objects.filter(design=design).count()
+        design.like_count = design.like_count + 1
         design.save()
         return DRFResponse({"message": "좋아요가 추가되었습니다.", "like_count": design.like_count}, status=status.HTTP_201_CREATED)
 
@@ -270,6 +270,17 @@ class ShopListView(APIView):
         serializer = ShopSerializer(shops, many=True) 
         return DRFResponse(serializer.data)
 
+class DesignListView(APIView):
+    """네일샵 리스트 반환 기능"""
+    @swagger_auto_schema(
+        operation_description="모든 네일 디자인 목록을 반환합니다.",
+        responses={200: DesignSerializer(many=True)}
+    )
+    def get(self, request, *args, **kwargs):
+        designs = Designs.objects.all()
+        serializer = DesignSerializer(designs, many=True) 
+        return DRFResponse(serializer.data)
+    
 class TryOnView(APIView):
     @swagger_auto_schema(
         operation_summary="Try On",
