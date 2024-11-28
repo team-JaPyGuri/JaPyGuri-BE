@@ -102,6 +102,8 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 await self.handle_get_responses(data)
             elif action == "get_requests": 
                 await self.handle_get_requests(data)
+            if action == "try_on":
+                await self.handle_try_on(data)
             else:
                 await self.send(text_data=json.dumps({
                     "error": f"Unknown action: {action}"
@@ -526,7 +528,6 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 }))
                 return
 
-            # 모든 요청 조회
             requests = Request.objects.filter(
                 shop__shop_key=shop_key
             ).select_related('customer', 'design')
@@ -554,3 +555,15 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({
                 "error": str(e)
             }))
+    
+    async def notify_tryon_result(self, event):
+        """
+        WebSocket 그룹에 Try-On 결과 알림을 전송합니다.
+        """
+        await self.send(
+            text_data=json.dumps({
+                "type": "tryon_result",
+                "original_image": event["original_image"],
+                "predicted_image_url": event["predicted_image_url"]
+            }, ensure_ascii=False)
+        )

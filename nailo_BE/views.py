@@ -2,6 +2,10 @@ import os
 from django.conf import settings
 
 from pathlib import Path
+from django.http import JsonResponse
+
+from channels.layers import get_channel_layer 
+from asgiref.sync import async_to_sync
 
 from rest_framework import viewsets, status
 from rest_framework.response import Response as DRFResponse
@@ -18,7 +22,10 @@ from .utils import get_user_id
 
 import requests
 import random
-import base64
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UserDetailView(APIView):
     @swagger_auto_schema(
@@ -285,102 +292,134 @@ class DesignListView(APIView):
         return DRFResponse(serializer.data)
     
 class TryOnView(APIView):
-    def get(self, request):
-        return DRFResponse({"message": "GET 요청은 허용되지 않습니다."}, status=405)
+    parser_classes = [MultiPartParser]  
 
     @swagger_auto_schema(
-        operation_summary="Try On",
-        operation_description="사용자가 이미지를 업로드하고 FastAPI 모델 서버를 호출하여 예측된 이미지를 반환받습니다.",
+        operation_summary="네일 입혀보기 기능",
+        operation_description="""
+        사용자가 이미지를 업로드하면 FastAPI 모델 서버를 통해 처리된 결과를 반환합니다. 
+        처리 결과는 WebSocket을 통해 알림으로 전송됩니다.
+        """,
+        manual_parameters=[
+            openapi.Parameter(
+                name="x-user-type",
+                in_=openapi.IN_HEADER,
+                type=openapi.TYPE_STRING,
+                required=True,
+                description="사용자 유형 (customer 또는 shop)"
+            ),
+            openapi.Parameter(
+                name="x-user-id",
+                in_=openapi.IN_HEADER,
+                type=openapi.TYPE_STRING,
+                required=True,
+                description="사용자 ID"
+            ),
+        ],
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "image": openapi.Schema(
+                    type=openapi.TYPE_FILE,
+                    description="업로드할 이미지 파일 (png, jpg, jpeg 형식만 지원)"
+                ),
+            },
+            required=["image"],
+        ),
         responses={
             200: openapi.Response(
-                description="성공적으로 처리된 응답",
+                description="이미지 업로드 및 처리 성공",
                 examples={
                     "application/json": {
-                        "message": "이미지 처리 완료",
-                        "received_image": "media/tryon/original/<filename>.png",
-                        "predicted_image": "media/tryon/predicted/predicted_<filename>.png",
+                        "message": "Image uploaded and processed successfully.",
+                        "original_image": "/media/tryon/original/0ad0f443-1464-4104-9755-f252f10825ba.png",
+                        "predicted_image": "/media/tryon/predicted/predicted_0ad0f443-1464-4104-9755-f252f10825ba.png",
                     }
-                },
+                }
             ),
-            400: "잘못된 요청",
-            500: "서버 오류",
+            400: openapi.Response(
+                description="잘못된 요청",
+                examples={
+                    "application/json": {
+                        "error": "No image file provided"
+                    }
+                }
+            ),
+            500: openapi.Response(
+                description="서버 에러",
+                examples={
+                    "application/json": {
+                        "error": "Model server communication error: ..."
+                    }
+                }
+            ),
         },
     )
     def post(self, request):
         if 'image' not in request.FILES:
-            return DRFResponse({"error": "No image file provided"}, status=400)
+            return JsonResponse({"error": "No image file provided"}, status=400)
         
         image = request.FILES['image']
 
         if not image.name.lower().endswith(('.png', '.jpg', '.jpeg')):
-            return DRFResponse({"error": "Invalid file format"}, status=400)
-        
-        # 고유 파일명으로 original 이미지 저장
+            return JsonResponse({"error": "Invalid file format"}, status=400)
+
+        # original 이미지 uuid로 저장
         unique_filename = f"{uuid.uuid4()}.png"
         original_path = Path(settings.MEDIA_ROOT) / "tryon/original" / unique_filename
-        predicted_path = Path(settings.MEDIA_ROOT) / "tryon/predicted" / f"predicted_{unique_filename}"
-        
         os.makedirs(original_path.parent, exist_ok=True)
-        os.makedirs(predicted_path.parent, exist_ok=True)
         
         with open(original_path, "wb") as f:
             for chunk in image.chunks():
                 f.write(chunk)
-            
-        # FastAPI 서버 URL
+
+        # fastapi 모델 서버
+        model_server_url = "https://9da9-211-117-82-98.ngrok-free.app/predict"
         try:
-            model_server_url = "https://1f3c-211-117-82-98.ngrok-free.app/predict"
             with open(original_path, "rb") as f:
                 files = {'image': (unique_filename, f, 'image/png')}
-                response = requests.post(model_server_url, files=files)
+                response = requests.post(model_server_url, files=files, stream=True)
 
             if response.status_code != 200:
-                return DRFResponse({"error": response.json().get("error", "Unknown error")}, status=response.status_code)
+                return JsonResponse({"error": f"Model server error: {response.text}"}, status=response.status_code)
 
-            # base64 디코딩 및 이미지 저장
+            # FastAPI 서버로부터 이미지 파일을 받아 로컬에 저장
+            predicted_filename = f"predicted_{unique_filename}"
+            predicted_path = Path(settings.MEDIA_ROOT) / "tryon/predicted" / predicted_filename
+            os.makedirs(predicted_path.parent, exist_ok=True)
+
+            with open(predicted_path, "wb") as predicted_file:
+                for chunk in response.iter_content(chunk_size=8192):  # FastAPI에서 받은 바이너리 데이터 저장
+                    predicted_file.write(chunk)
+
+            user_type = request.headers.get('x-user-type', 'customer')  # 기본값은 'customer'
+            user_id = request.headers.get('x-user-id')
+            if not user_id:
+                return JsonResponse({"error": "No user ID provided in headers"}, status=400)
+
+            group_name = f"{user_type}_{user_id}"  
+            channel_layer = get_channel_layer()
             try:
-                predicted_image_str = response.json().get("predicted_image")
-                if not predicted_image_str:
-                    raise ValueError("No predicted image data received")
-                
-                # base64 디코딩하여 predicted 이미지 저장
-                predicted_image_data = base64.b64decode(predicted_image_str)
-                with open(predicted_path, "wb") as f:
-                    f.write(predicted_image_data)
+                async_to_sync(channel_layer.group_send)(
+                    group_name,
+                    {
+                        "type": "notify_tryon_result",
+                        "original_image": f"/media/tryon/original/{unique_filename}",
+                        "predicted_image": f"/media/tryon/predicted/{predicted_filename}",
+                    }
+                )
             except Exception as e:
-                return DRFResponse({
-                    "error": f"이미지 디코딩 중 오류 발생: {str(e)}"
-                }, status=500)
-            
-            user_type = request.headers.get("X-User-Type")
-            user_id = request.headers.get("X-User-Id")
+                logger.error(f"Failed to send WebSocket message to group {group_name}: {str(e)}")
 
-            if not user_type or not user_id or user_type != "customer":
-                return DRFResponse({"error": "Invalid user headers"}, status=400)
-
-            try:
-                customer = Customers.objects.get(customer_id=user_id)
-            except Customers.DoesNotExist:
-                return DRFResponse({"error": "User not found"}, status=404)
-
-            TryOnHistory.objects.create(
-                user=customer,
-                original_image=f"tryon/original/{unique_filename}",
-                predicted_image=f"tryon/predicted/predicted_{unique_filename}",
-            )
-
-            return DRFResponse({
-                "message": "이미지 처리 완료",
-                "received_image": f"/media/tryon/original/{unique_filename}",
-                "predicted_image": f"/media/tryon/predicted/predicted_{unique_filename}",
+            return JsonResponse({
+                "message": "Image uploaded and processed successfully.",
+                "original_image": f"/media/tryon/original/{unique_filename}",
+                "predicted_image": f"/media/tryon/predicted/{predicted_filename}",
             }, status=200)
-            
+
         except requests.exceptions.RequestException as e:
-            return DRFResponse({"error": f"모델 서버와 통신 중 오류 발생: {str(e)}"}, status=500)
-
-        except Exception as e:
-            return DRFResponse({"error": f"서버 내부 오류: {str(e)}"}, status=500)
-
+            return JsonResponse({"error": f"Model server communication error: {str(e)}"}, status=500)
+        
 class TryOnHistoryView(APIView):
     @swagger_auto_schema(
         operation_summary="Try On History",
@@ -391,8 +430,8 @@ class TryOnHistoryView(APIView):
                 examples={
                     "application/json": [
                         {
-                            "original_image": "http://127.0.0.1:8001/media/tryon/original/15257_35734_0936.jpg",
-                            "predicted_image": "http://127.0.0.1:8001/media/tryon/predicted/predicted_15257_35734_0936.jpg",
+                            "original_image": "http://localhost:8001/media/tryon/original/15257_35734_0936.jpg",
+                            "predicted_image": "http://localhost:8001/media/tryon/predicted/predicted_15257_35734_0936.jpg",
                             "created_at": "2024-11-25T06:03:26.350928Z",
                         }
                     ]

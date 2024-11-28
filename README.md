@@ -214,3 +214,15 @@ Format:
   }
 }
 ```
+#### notify_tryon_result
+입혀보기 결과가 생성되었음을 클라이언트에 알림
+
+Format:
+```json
+{
+  "type": "notify_tryon_result",
+  "original_image": "<string>",
+  "predicted_image": "<string>" 
+}
+```
+
