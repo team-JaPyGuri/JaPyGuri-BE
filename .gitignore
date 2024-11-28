@@ -11,3 +11,4 @@
 *.dylib
 *.sqlite3
 data.json
+media

@@ -1,6 +1,8 @@
 import os
 from django.conf import settings
 
+from pathlib import Path
+
 from rest_framework import viewsets, status
 from rest_framework.response import Response as DRFResponse
 from rest_framework.views import APIView
@@ -16,6 +18,7 @@ from .utils import get_user_id
 
 import requests
 import random
+import base64
 
 class UserDetailView(APIView):
     @swagger_auto_schema(
@@ -309,33 +312,45 @@ class TryOnView(APIView):
         
         image = request.FILES['image']
 
-        # 파일 확장자 검증
         if not image.name.lower().endswith(('.png', '.jpg', '.jpeg')):
             return DRFResponse({"error": "Invalid file format"}, status=400)
         
-        # FastAPI 서버 URL
-        model_server_url = "https://1f3c-211-117-82-98.ngrok-free.app/predict"
+        # 고유 파일명으로 original 이미지 저장
         unique_filename = f"{uuid.uuid4()}.png"
+        original_path = Path(settings.MEDIA_ROOT) / "tryon/original" / unique_filename
+        predicted_path = Path(settings.MEDIA_ROOT) / "tryon/predicted" / f"predicted_{unique_filename}"
         
+        os.makedirs(original_path.parent, exist_ok=True)
+        os.makedirs(predicted_path.parent, exist_ok=True)
+        
+        with open(original_path, "wb") as f:
+            for chunk in image.chunks():
+                f.write(chunk)
+            
+        # FastAPI 서버 URL
         try:
-            files = {'image': (unique_filename, image, image.content_type)}
-            response = requests.post(model_server_url, files=files)
-            response_data = response.json()
+            model_server_url = "https://1f3c-211-117-82-98.ngrok-free.app/predict"
+            with open(original_path, "rb") as f:
+                files = {'image': (unique_filename, f, 'image/png')}
+                response = requests.post(model_server_url, files=files)
 
             if response.status_code != 200:
-                return DRFResponse({"error": response_data.get("error", "Unknown error")}, status=response.status_code)
+                return DRFResponse({"error": response.json().get("error", "Unknown error")}, status=response.status_code)
 
-            original_image_path = response_data.get("received_image")
-            predicted_image_path = response_data.get("predicted_image")
-            
-            django_original_path = Path(settings.MEDIA_ROOT) / "tryon/original" / Path(original_image_path).name
-            django_predicted_path = Path(settings.MEDIA_ROOT) / "tryon/predicted" / Path(predicted_image_path).name
-            
-            os.makedirs(django_original_path.parent, exist_ok=True)
-            os.makedirs(django_predicted_path.parent, exist_ok=True)
-
-            shutil.copy(original_image_path, django_original_path)
-            shutil.copy(predicted_image_path, django_predicted_path)
+            # base64 디코딩 및 이미지 저장
+            try:
+                predicted_image_str = response.json().get("predicted_image")
+                if not predicted_image_str:
+                    raise ValueError("No predicted image data received")
+                
+                # base64 디코딩하여 predicted 이미지 저장
+                predicted_image_data = base64.b64decode(predicted_image_str)
+                with open(predicted_path, "wb") as f:
+                    f.write(predicted_image_data)
+            except Exception as e:
+                return DRFResponse({
+                    "error": f"이미지 디코딩 중 오류 발생: {str(e)}"
+                }, status=500)
             
             user_type = request.headers.get("X-User-Type")
             user_id = request.headers.get("X-User-Id")
@@ -350,14 +365,14 @@ class TryOnView(APIView):
 
             TryOnHistory.objects.create(
                 user=customer,
-                original_image=f"tryon/original/{Path(django_original_path).name}",
-                predicted_image=f"tryon/predicted/{Path(django_predicted_path).name}",
+                original_image=f"tryon/original/{unique_filename}",
+                predicted_image=f"tryon/predicted/predicted_{unique_filename}",
             )
 
             return DRFResponse({
-                "message": response_data.get("message", "이미지 처리 완료"),
-                "received_image": f"/media/tryon/original/{Path(django_original_path).name}",
-                "predicted_image": f"/media/tryon/predicted/{Path(django_predicted_path).name}",
+                "message": "이미지 처리 완료",
+                "received_image": f"/media/tryon/original/{unique_filename}",
+                "predicted_image": f"/media/tryon/predicted/predicted_{unique_filename}",
             }, status=200)
             
         except requests.exceptions.RequestException as e:
