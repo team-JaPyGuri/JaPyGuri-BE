@@ -374,7 +374,7 @@ class TryOnView(APIView):
                 f.write(chunk)
 
         # fastapi 모델 서버
-        model_server_url = "https://9da9-211-117-82-98.ngrok-free.app/predict"
+        model_server_url = "https://7f50-211-117-82-98.ngrok-free.app/predict"
         try:
             with open(original_path, "rb") as f:
                 files = {'image': (unique_filename, f, 'image/png')}
@@ -409,10 +409,10 @@ class TryOnView(APIView):
                     }
                 )
             except Exception as e:
-                logger.error(f"Failed to send WebSocket message to group {group_name}: {str(e)}")
+                logger.error(f"웹소켓 메시지 전송 실패: 그룹 {group_name}: {str(e)}")
 
             return JsonResponse({
-                "message": "Image uploaded and processed successfully.",
+                "message": "이미지가 성공적으로 생성되었습니다..",
                 "original_image": f"/media/tryon/original/{unique_filename}",
                 "predicted_image": f"/media/tryon/predicted/{predicted_filename}",
             }, status=200)

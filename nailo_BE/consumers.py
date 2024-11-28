@@ -563,7 +563,8 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         await self.send(
             text_data=json.dumps({
                 "type": "tryon_result",
-                "original_image": event["original_image"],
-                "predicted_image_url": event["predicted_image_url"]
+                "message": "이미지가 생성되었습니다.",
+                # "original_image": event["original_image"],
+                # "predicted_image": event["predicted_image"]
             }, ensure_ascii=False)
         )
