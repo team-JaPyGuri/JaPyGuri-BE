@@ -368,13 +368,12 @@ class TryOnView(APIView):
         unique_filename = f"{uuid.uuid4()}.png"
         original_path = Path(settings.MEDIA_ROOT) / "tryon/original" / unique_filename
         os.makedirs(original_path.parent, exist_ok=True)
-        
         with open(original_path, "wb") as f:
             for chunk in image.chunks():
                 f.write(chunk)
 
         # fastapi 모델 서버
-        model_server_url = "https://7f50-211-117-82-98.ngrok-free.app/predict"
+        model_server_url = "https://3894-211-117-82-98.ngrok-free.app/predict"
         try:
             with open(original_path, "rb") as f:
                 files = {'image': (unique_filename, f, 'image/png')}
@@ -391,14 +390,30 @@ class TryOnView(APIView):
             with open(predicted_path, "wb") as predicted_file:
                 for chunk in response.iter_content(chunk_size=8192):  # FastAPI에서 받은 바이너리 데이터 저장
                     predicted_file.write(chunk)
-
-            user_type = request.headers.get('x-user-type', 'customer')  # 기본값은 'customer'
-            user_id = request.headers.get('x-user-id')
-            if not user_id:
-                return JsonResponse({"error": "No user ID provided in headers"}, status=400)
-
+                
+            user_type = request.headers.get("X-User-Type")
+            user_id = request.headers.get("X-User-Id")
+            if not user_type or not user_id:
+                return DRFResponse({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
+                
             group_name = f"{user_type}_{user_id}"  
             channel_layer = get_channel_layer()
+            try:
+                customer = Customers.objects.get(customer_id=user_id)
+            except Customers.DoesNotExist:
+                return DRFResponse({"error": "User not found"}, status=404)
+                        
+            # TryOnHistory 객체 생성
+            tryon_history = TryOnHistory.objects.create(
+                user=customer,
+                original_image=f"/tryon/original/{unique_filename}",
+                predicted_image=f"/tryon/predicted/{predicted_filename}"
+            )
+
+            # TryOnHistory 객체 생성 여부 확인
+            if not tryon_history:
+                return JsonResponse({"error": "Failed to save TryOnHistory record."}, status=500)
+                
             try:
                 async_to_sync(channel_layer.group_send)(
                     group_name,
