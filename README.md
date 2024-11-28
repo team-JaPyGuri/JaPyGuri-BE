@@ -221,8 +221,7 @@ Format:
 ```json
 {
   "type": "notify_tryon_result",
-  "original_image": "<string>",
-  "predicted_image": "<string>" 
+  "message": "<string>"
 }
 ```
 
