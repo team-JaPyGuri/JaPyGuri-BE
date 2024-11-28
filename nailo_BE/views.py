@@ -282,6 +282,9 @@ class DesignListView(APIView):
         return DRFResponse(serializer.data)
     
 class TryOnView(APIView):
+    def get(self, request):
+        return DRFResponse({"message": "GET 요청은 허용되지 않습니다."}, status=405)
+
     @swagger_auto_schema(
         operation_summary="Try On",
         operation_description="사용자가 이미지를 업로드하고 FastAPI 모델 서버를 호출하여 예측된 이미지를 반환받습니다.",
@@ -291,8 +294,8 @@ class TryOnView(APIView):
                 examples={
                     "application/json": {
                         "message": "이미지 처리 완료",
-                        "received_image": "uploaded_images/15257_35734_0936.jpg",
-                        "predicted_image": "predicted_images/predicted_15257_35734_0936.jpg",
+                        "received_image": "media/tryon/original/<filename>.png",
+                        "predicted_image": "media/tryon/predicted/predicted_<filename>.png",
                     }
                 },
             ),
@@ -306,10 +309,16 @@ class TryOnView(APIView):
         
         image = request.FILES['image']
 
+        # 파일 확장자 검증
+        if not image.name.lower().endswith(('.png', '.jpg', '.jpeg')):
+            return DRFResponse({"error": "Invalid file format"}, status=400)
+        
         # FastAPI 서버 URL
-        model_server_url = "https://301a-211-117-82-98.ngrok-free.app/predict"
-        files = {'image': image}
+        model_server_url = "https://1f3c-211-117-82-98.ngrok-free.app/predict"
+        unique_filename = f"{uuid.uuid4()}.png"
+        
         try:
+            files = {'image': (unique_filename, image, image.content_type)}
             response = requests.post(model_server_url, files=files)
             response_data = response.json()
 
@@ -318,7 +327,16 @@ class TryOnView(APIView):
 
             original_image_path = response_data.get("received_image")
             predicted_image_path = response_data.get("predicted_image")
+            
+            django_original_path = Path(settings.MEDIA_ROOT) / "tryon/original" / Path(original_image_path).name
+            django_predicted_path = Path(settings.MEDIA_ROOT) / "tryon/predicted" / Path(predicted_image_path).name
+            
+            os.makedirs(django_original_path.parent, exist_ok=True)
+            os.makedirs(django_predicted_path.parent, exist_ok=True)
 
+            shutil.copy(original_image_path, django_original_path)
+            shutil.copy(predicted_image_path, django_predicted_path)
+            
             user_type = request.headers.get("X-User-Type")
             user_id = request.headers.get("X-User-Id")
 
@@ -332,17 +350,21 @@ class TryOnView(APIView):
 
             TryOnHistory.objects.create(
                 user=customer,
-                original_image=original_image_path,  
-                predicted_image=predicted_image_path  
+                original_image=f"tryon/original/{Path(django_original_path).name}",
+                predicted_image=f"tryon/predicted/{Path(django_predicted_path).name}",
             )
 
             return DRFResponse({
                 "message": response_data.get("message", "이미지 처리 완료"),
-                "received_image": original_image_path,
-                "predicted_image": predicted_image_path,
+                "received_image": f"/media/tryon/original/{Path(django_original_path).name}",
+                "predicted_image": f"/media/tryon/predicted/{Path(django_predicted_path).name}",
             }, status=200)
+            
+        except requests.exceptions.RequestException as e:
+            return DRFResponse({"error": f"모델 서버와 통신 중 오류 발생: {str(e)}"}, status=500)
+
         except Exception as e:
-            return DRFResponse({"error": str(e)}, status=500)
+            return DRFResponse({"error": f"서버 내부 오류: {str(e)}"}, status=500)
 
 class TryOnHistoryView(APIView):
     @swagger_auto_schema(
