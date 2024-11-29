@@ -297,7 +297,7 @@ class TryOnView(APIView):
     @swagger_auto_schema(
         operation_summary="네일 입혀보기 기능",
         operation_description="""
-        사용자가 이미지를 업로드하면 FastAPI 모델 서버를 통해 처리된 결과를 반환합니다. 
+        사용자가 이미지를 업로드하면 FastAPI 모델 서버를 통해 처리된 결과를 반환합니다.
         처리 결과는 WebSocket을 통해 알림으로 전송됩니다.
         """,
         manual_parameters=[
@@ -315,17 +315,14 @@ class TryOnView(APIView):
                 required=True,
                 description="사용자 ID"
             ),
+            openapi.Parameter(
+                name="image",
+                in_=openapi.IN_FORM,
+                type=openapi.TYPE_FILE,  # 파일 업로드를 위한 TYPE_FILE 사용
+                required=True,
+                description="업로드할 이미지 파일 (png, jpg, jpeg 형식만 지원)"
+            ),
         ],
-        request_body=openapi.Schema(
-            type=openapi.TYPE_OBJECT,
-            properties={
-                "image": openapi.Schema(
-                    type=openapi.TYPE_FILE,
-                    description="업로드할 이미지 파일 (png, jpg, jpeg 형식만 지원)"
-                ),
-            },
-            required=["image"],
-        ),
         responses={
             200: openapi.Response(
                 description="이미지 업로드 및 처리 성공",
@@ -442,6 +439,27 @@ class TryOnHistoryView(APIView):
         responses={
             200: openapi.Response(
                 description="히스토리 반환",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            "original_image": openapi.Schema(
+                                type=openapi.TYPE_STRING,
+                                description="원본 이미지 URL"
+                            ),
+                            "predicted_image": openapi.Schema(
+                                type=openapi.TYPE_STRING,
+                                description="처리된 이미지 URL"
+                            ),
+                            "created_at": openapi.Schema(
+                                type=openapi.TYPE_STRING,
+                                format="date-time",
+                                description="생성 날짜"
+                            ),
+                        }
+                    )
+                ),
                 examples={
                     "application/json": [
                         {
@@ -452,8 +470,8 @@ class TryOnHistoryView(APIView):
                     ]
                 },
             ),
-            400: "잘못된 요청",
-            404: "사용자 없음",
+            400: openapi.Response(description="잘못된 요청"),
+            404: openapi.Response(description="사용자 없음"),
         },
     )
     def get(self, request):
