@@ -292,13 +292,13 @@ class DesignListView(APIView):
         return DRFResponse(serializer.data)
     
 class TryOnView(APIView):
-    parser_classes = [MultiPartParser]  
+    parser_classes = [MultiPartParser]
 
     @swagger_auto_schema(
         operation_summary="네일 입혀보기 기능",
         operation_description="""
-        사용자가 이미지를 업로드하면 FastAPI 모델 서버를 통해 처리된 결과를 반환합니다.
-        처리 결과는 WebSocket을 통해 알림으로 전송됩니다.
+        사용자가 손 사진을 업로드하고 네일 디자인 키를 제공하면 FastAPI 모델 서버를 통해 처리된 결과를 반환합니다.
+        처리 결과는 WebSocket을 통해 사용자에게 전송됩니다.
         """,
         manual_parameters=[
             openapi.Parameter(
@@ -316,11 +316,18 @@ class TryOnView(APIView):
                 description="사용자 ID"
             ),
             openapi.Parameter(
+                name="design_key",
+                in_=openapi.IN_FORM,
+                type=openapi.TYPE_STRING,
+                required=True,
+                description="네일 디자인의 키 (필수)"
+            ),
+            openapi.Parameter(
                 name="image",
                 in_=openapi.IN_FORM,
-                type=openapi.TYPE_FILE,  # 파일 업로드를 위한 TYPE_FILE 사용
+                type=openapi.TYPE_FILE,
                 required=True,
-                description="업로드할 이미지 파일 (png, jpg, jpeg 형식만 지원)"
+                description="업로드할 손 사진 파일 (png, jpg, jpeg 형식만 지원)"
             ),
         ],
         responses={
@@ -328,8 +335,8 @@ class TryOnView(APIView):
                 description="이미지 업로드 및 처리 성공",
                 examples={
                     "application/json": {
-                        "message": "Image uploaded and processed successfully.",
-                        "original_image": "/media/tryon/original/0ad0f443-1464-4104-9755-f252f10825ba.png",
+                        "message": "Image processed successfully.",
+                        "original_image": "/media/tryon/hand/0ad0f443-1464-4104-9755-f252f10825ba.png",
                         "predicted_image": "/media/tryon/predicted/predicted_0ad0f443-1464-4104-9755-f252f10825ba.png",
                     }
                 }
@@ -338,7 +345,15 @@ class TryOnView(APIView):
                 description="잘못된 요청",
                 examples={
                     "application/json": {
-                        "error": "No image file provided"
+                        "error": "Design key is required."
+                    }
+                }
+            ),
+            404: openapi.Response(
+                description="디자인을 찾을 수 없음",
+                examples={
+                    "application/json": {
+                        "error": "Design not found."
                     }
                 }
             ),
@@ -352,85 +367,92 @@ class TryOnView(APIView):
             ),
         },
     )
+
     def post(self, request):
-        if 'image' not in request.FILES:
-            return JsonResponse({"error": "No image file provided"}, status=400)
-        
-        image = request.FILES['image']
+        # 사용자 헤더 정보 확인
+        user_type = request.headers.get("X-User-Type")
+        user_id = request.headers.get("X-User-Id")
+        if not user_type or not user_id:
+            return JsonResponse({"error": "User headers are missing."}, status=400)
 
-        if not image.name.lower().endswith(('.png', '.jpg', '.jpeg')):
-            return JsonResponse({"error": "Invalid file format"}, status=400)
+        # 손 사진(image) 확인
+        if "image" not in request.FILES:
+            return JsonResponse({"error": "No hand image file provided."}, status=400)
 
-        # original 이미지 uuid로 저장
-        unique_filename = f"{uuid.uuid4()}.png"
-        original_path = Path(settings.MEDIA_ROOT) / "tryon/original" / unique_filename
-        os.makedirs(original_path.parent, exist_ok=True)
-        with open(original_path, "wb") as f:
-            for chunk in image.chunks():
-                f.write(chunk)
+        hand_image = request.FILES["image"]
+        if not hand_image.name.lower().endswith(('.png', '.jpg', '.jpeg')):
+            return JsonResponse({"error": "Invalid hand image format."}, status=400)
 
-        # fastapi 모델 서버
-        model_server_url = "https://3894-211-117-82-98.ngrok-free.app/predict"
+        design_key = request.data.get("design_key")
+        if not design_key:
+            return JsonResponse({"error": "Design key is required."}, status=400)
+
         try:
-            with open(original_path, "rb") as f:
-                files = {'image': (unique_filename, f, 'image/png')}
-                response = requests.post(model_server_url, files=files, stream=True)
+            design = Designs.objects.get(design_key=design_key)
+            design_image_url = design.design_url
 
+            design_response = requests.get(design_image_url, stream=True)
+            if design_response.status_code != 200:
+                return JsonResponse({"error": f"Failed to fetch design image from URL: {design_image_url}"}, status=500)
+
+            # 손 사진과 네일아트 이미지를 모델 서버로 전송
+            model_server_url = "https://168c-211-117-82-98.ngrok-free.app/predict"
+            unique_filename = f"{uuid.uuid4()}.png"
+            hand_image_path = Path(settings.MEDIA_ROOT) / "tryon/hand" / unique_filename
+            os.makedirs(hand_image_path.parent, exist_ok=True)
+
+            with open(hand_image_path, "wb") as f:
+                for chunk in hand_image.chunks():
+                    f.write(chunk)
+
+            files = {
+                "hand_image": (hand_image.name, open(hand_image_path, "rb"), "image/png"),
+                "design_image": ("design.png", design_response.raw, "image/png"),
+            }
+
+            response = requests.post(model_server_url, files=files, stream=True)
             if response.status_code != 200:
-                return JsonResponse({"error": f"Model server error: {response.text}"}, status=response.status_code)
+                return JsonResponse({"error": f"Model server error: {response.text}"}, status=500)
 
-            # FastAPI 서버로부터 이미지 파일을 받아 로컬에 저장
             predicted_filename = f"predicted_{unique_filename}"
             predicted_path = Path(settings.MEDIA_ROOT) / "tryon/predicted" / predicted_filename
             os.makedirs(predicted_path.parent, exist_ok=True)
 
             with open(predicted_path, "wb") as predicted_file:
-                for chunk in response.iter_content(chunk_size=8192):  # FastAPI에서 받은 바이너리 데이터 저장
+                for chunk in response.iter_content(chunk_size=8192):
                     predicted_file.write(chunk)
-                
-            user_type = request.headers.get("X-User-Type")
-            user_id = request.headers.get("X-User-Id")
-            if not user_type or not user_id:
-                return DRFResponse({"error": "사용자 정보를 헤더에 포함해야 합니다."}, status=400)
-                
-            group_name = f"{user_type}_{user_id}"  
-            channel_layer = get_channel_layer()
+
+            # WebSocket 및 히스토리 저장
             try:
                 customer = Customers.objects.get(customer_id=user_id)
-            except Customers.DoesNotExist:
-                return DRFResponse({"error": "User not found"}, status=404)
-                        
-            # TryOnHistory 객체 생성
-            tryon_history = TryOnHistory.objects.create(
-                user=customer,
-                original_image=f"/tryon/original/{unique_filename}",
-                predicted_image=f"/tryon/predicted/{predicted_filename}"
-            )
+                TryOnHistory.objects.create(
+                    user=customer,
+                    original_image=f"/tryon/hand/{unique_filename}",
+                    predicted_image=f"/tryon/predicted/{predicted_filename}",
+                )
 
-            # TryOnHistory 객체 생성 여부 확인
-            if not tryon_history:
-                return JsonResponse({"error": "Failed to save TryOnHistory record."}, status=500)
-                
-            try:
+                group_name = f"{user_type}_{user_id}"
+                channel_layer = get_channel_layer()
                 async_to_sync(channel_layer.group_send)(
                     group_name,
                     {
                         "type": "notify_tryon_result",
-                        "original_image": f"/media/tryon/original/{unique_filename}",
+                        "original_image": f"/media/tryon/hand/{unique_filename}",
                         "predicted_image": f"/media/tryon/predicted/{predicted_filename}",
-                    }
+                    },
                 )
             except Exception as e:
-                logger.error(f"웹소켓 메시지 전송 실패: 그룹 {group_name}: {str(e)}")
+                logger.error(f"WebSocket message error: {str(e)}")
 
             return JsonResponse({
-                "message": "이미지가 성공적으로 생성되었습니다..",
-                "original_image": f"/media/tryon/original/{unique_filename}",
+                "message": "Image processed successfully.",
+                "original_image": f"/media/tryon/hand/{unique_filename}",
                 "predicted_image": f"/media/tryon/predicted/{predicted_filename}",
             }, status=200)
-
-        except requests.exceptions.RequestException as e:
-            return JsonResponse({"error": f"Model server communication error: {str(e)}"}, status=500)
+        except Designs.DoesNotExist:
+            return JsonResponse({"error": "Design not found."}, status=404)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
         
 class TryOnHistoryView(APIView):
     @swagger_auto_schema(
