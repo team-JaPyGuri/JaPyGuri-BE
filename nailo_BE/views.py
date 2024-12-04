@@ -512,15 +512,20 @@ class TryOnHistoryView(APIView):
                                 format="date-time",
                                 description="생성 날짜"
                             ),
+                            "design_key": openapi.Schema(
+                                type=openapi.TYPE_STRING,
+                                description="디자인 키"
+                            ),
                         }
                     )
                 ),
                 examples={
                     "application/json": [
                         {
-                            "original_image": "http://localhost:8001/media/tryon/original/15257_35734_0936.jpg",
+                            "original_image": "http://localhost:8001/media/tryon/hand/15257_35734_0936.jpg",
                             "predicted_image": "http://localhost:8001/media/tryon/predicted/predicted_15257_35734_0936.jpg",
                             "created_at": "2024-11-25T06:03:26.350928Z",
+                            "design_key": "012869af-6557-4cab-b1a8-019445c1fed1"
                         }
                     ]
                 },
