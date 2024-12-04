@@ -137,7 +137,6 @@ class HomePageView(APIView):
         },
     )
     def get(self, request, *args, **kwargs):
-        # 쿼리 파라미터 확인
         query_type = request.query_params.get('type', 'random')  # 기본값은 'random'
         designs = Designs.objects.filter(is_active=True).order_by('-created_at')
 
@@ -172,7 +171,6 @@ class LikeListView(APIView):
         },
     )
     def get(self, request, *args, **kwargs):
-        # 현재 사용자 기반 좋아요 리스트
         user_type_header = request.headers.get("X-User-Type")
         user_id = request.headers.get("X-User-Id")
 
@@ -290,7 +288,39 @@ class DesignListView(APIView):
         designs = Designs.objects.all()
         serializer = DesignSerializer(designs, many=True) 
         return DRFResponse(serializer.data)
-    
+
+def manage_directory_files(directory_path, max_files=10):
+    """
+    디렉토리 내 파일 수를 관리하고 데이터베이스를 동기화하는 함수
+    가장 오래된 파일부터 삭제하여 최대 파일 수를 유지
+    """
+    try:
+        files = list(Path(directory_path).glob('*'))
+        files.sort(key=lambda x: x.stat().st_ctime)
+        
+        while len(files) >= max_files:
+            oldest_file = files.pop(0) 
+            try:
+                filename = oldest_file.name
+                
+                # DB에 저장된 형식과 동일한 경로로 구성
+                if "predicted" in str(oldest_file):
+                    db_path = f"/tryon/predicted/{filename}"
+                    TryOnHistory.objects.filter(predicted_image=db_path).delete()
+                else:
+                    db_path = f"/tryon/hand/{filename}"
+                    TryOnHistory.objects.filter(original_image=db_path).delete()
+                
+                if oldest_file.exists():
+                    oldest_file.unlink()
+                    logger.info(f"Deleted file {oldest_file} and its database record with path {db_path}")
+                
+            except Exception as e:
+                logger.error(f"Error in file deletion process for {oldest_file}: {str(e)}")
+                
+    except Exception as e:
+        logger.error(f"Error managing directory {directory_path}: {str(e)}")
+        
 class TryOnView(APIView):
     parser_classes = [MultiPartParser]
 
@@ -320,7 +350,7 @@ class TryOnView(APIView):
                 in_=openapi.IN_FORM,
                 type=openapi.TYPE_STRING,
                 required=True,
-                description="네일 디자인의 키 (필수)"
+                description="design key(필수)"
             ),
             openapi.Parameter(
                 name="image",
@@ -335,9 +365,10 @@ class TryOnView(APIView):
                 description="이미지 업로드 및 처리 성공",
                 examples={
                     "application/json": {
-                        "message": "Image processed successfully.",
+                        "message": "이미지가 생성되었습니다.",
                         "original_image": "/media/tryon/hand/0ad0f443-1464-4104-9755-f252f10825ba.png",
                         "predicted_image": "/media/tryon/predicted/predicted_0ad0f443-1464-4104-9755-f252f10825ba.png",
+                        "design_key" : "uuid",
                     }
                 }
             ),
@@ -369,13 +400,11 @@ class TryOnView(APIView):
     )
 
     def post(self, request):
-        # 사용자 헤더 정보 확인
         user_type = request.headers.get("X-User-Type")
         user_id = request.headers.get("X-User-Id")
         if not user_type or not user_id:
             return JsonResponse({"error": "User headers are missing."}, status=400)
 
-        # 손 사진(image) 확인
         if "image" not in request.FILES:
             return JsonResponse({"error": "No hand image file provided."}, status=400)
 
@@ -388,26 +417,25 @@ class TryOnView(APIView):
             return JsonResponse({"error": "Design key is required."}, status=400)
 
         try:
-            design = Designs.objects.get(design_key=design_key)
-            design_image_url = design.design_url
-
-            design_response = requests.get(design_image_url, stream=True)
-            if design_response.status_code != 200:
-                return JsonResponse({"error": f"Failed to fetch design image from URL: {design_image_url}"}, status=500)
-
-            # 손 사진과 네일아트 이미지를 모델 서버로 전송
-            model_server_url = "https://168c-211-117-82-98.ngrok-free.app/predict"
             unique_filename = f"{uuid.uuid4()}.png"
             hand_image_path = Path(settings.MEDIA_ROOT) / "tryon/hand" / unique_filename
+            predicted_path_dir = Path(settings.MEDIA_ROOT) / "tryon/predicted"
+            
             os.makedirs(hand_image_path.parent, exist_ok=True)
+            os.makedirs(predicted_path_dir, exist_ok=True)
+
+            manage_directory_files(hand_image_path.parent)
+            manage_directory_files(predicted_path_dir)
 
             with open(hand_image_path, "wb") as f:
                 for chunk in hand_image.chunks():
                     f.write(chunk)
-
+                    
+            # 모델 서버 url
+            model_server_url = "https://156e-211-117-82-98.ngrok-free.app/predict"
+            
             files = {
-                "hand_image": (hand_image.name, open(hand_image_path, "rb"), "image/png"),
-                "design_image": ("design.png", design_response.raw, "image/png"),
+                "image": (hand_image.name, open(hand_image_path, "rb"), "image/png"),
             }
 
             response = requests.post(model_server_url, files=files, stream=True)
@@ -425,10 +453,13 @@ class TryOnView(APIView):
             # WebSocket 및 히스토리 저장
             try:
                 customer = Customers.objects.get(customer_id=user_id)
+                design = Designs.objects.get(design_key=design_key)
+                
                 TryOnHistory.objects.create(
                     user=customer,
                     original_image=f"/tryon/hand/{unique_filename}",
                     predicted_image=f"/tryon/predicted/{predicted_filename}",
+                    design_key=design,
                 )
 
                 group_name = f"{user_type}_{user_id}"
@@ -439,15 +470,17 @@ class TryOnView(APIView):
                         "type": "notify_tryon_result",
                         "original_image": f"/media/tryon/hand/{unique_filename}",
                         "predicted_image": f"/media/tryon/predicted/{predicted_filename}",
+                        "design_key": design_key,
                     },
                 )
             except Exception as e:
                 logger.error(f"WebSocket message error: {str(e)}")
 
             return JsonResponse({
-                "message": "Image processed successfully.",
+                "message": "이미지가 생성되었습니다.",
                 "original_image": f"/media/tryon/hand/{unique_filename}",
                 "predicted_image": f"/media/tryon/predicted/{predicted_filename}",
+                "design_key": design_key,
             }, status=200)
         except Designs.DoesNotExist:
             return JsonResponse({"error": "Design not found."}, status=404)
@@ -524,13 +557,14 @@ class TryOnHistoryView(APIView):
                     "original_image": original_image_url,
                     "predicted_image": predicted_image_url,
                     "created_at": item.created_at,
+                    "design_key": item.design_key.design_key,
                 })
             except Exception as e:
                 data.append({
                     "original_image": None,
                     "predicted_image": None,
                     "created_at": item.created_at,
+                    "design_key": item.design_key.design_key,
                     "error": str(e)
                 })
         return DRFResponse(data, status=200)
-
