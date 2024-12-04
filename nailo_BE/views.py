@@ -432,7 +432,7 @@ class TryOnView(APIView):
                     f.write(chunk)
                     
             # 모델 서버 url
-            model_server_url = "https://156e-211-117-82-98.ngrok-free.app/predict"
+            model_server_url = "https://326d-211-117-82-98.ngrok-free.app/predict"
             
             files = {
                 "image": (hand_image.name, open(hand_image_path, "rb"), "image/png"),
@@ -558,6 +558,15 @@ class TryOnHistoryView(APIView):
                     request.build_absolute_uri(item.predicted_image.url)
                     if item.predicted_image else None
                 )
+                # 배포 서버
+                # original_image_url = (
+                #     request.build_absolute_uri(item.original_image.url).replace('http://', 'https://')
+                #     if item.original_image else None
+                # )
+                # predicted_image_url = (
+                #     request.build_absolute_uri(item.predicted_image.url).replace('http://', 'https://')
+                #     if item.predicted_image else None
+                # )
                 data.append({
                     "original_image": original_image_url,
                     "predicted_image": predicted_image_url,
