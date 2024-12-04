@@ -82,6 +82,7 @@ class TryOnHistory(models.Model):
     original_image = models.ImageField(upload_to='tryon/original/')
     predicted_image = models.ImageField(upload_to='tryon/predicted/')
     created_at = models.DateTimeField(auto_now_add=True)
-
+    design_key = models.ForeignKey(Designs, to_field='design_key', on_delete=models.CASCADE)
+    
     def __str__(self):
         return f"History for {self.user.customer_name} at {self.created_at}"
