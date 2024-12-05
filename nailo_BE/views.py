@@ -22,7 +22,7 @@ from .utils import get_user_id
 
 import requests
 import random
-
+import re 
 import logging
 
 logger = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ class HomePageView(APIView):
     )
     def get(self, request, *args, **kwargs):
         query_type = request.query_params.get('type', 'random')  # 기본값은 'random'
-        designs = Designs.objects.filter(is_active=True).order_by('-created_at')
+        designs = Designs.objects.all().order_by('-created_at')
 
         if query_type == 'random':
             return self._get_random_designs(designs)
@@ -417,6 +417,33 @@ class TryOnView(APIView):
             return JsonResponse({"error": "Design key is required."}, status=400)
 
         try:
+            design = Designs.objects.get(design_key=design_key)
+            design_name = design.design_name
+
+            # design_name에서 숫자 ID 추출
+            match = re.search(r'Design (\d+)', design_name, re.IGNORECASE)
+            if not match:
+                return JsonResponse({"error": "Invalid design name format."}, status=400)
+            original_id = match.group(1)
+            
+            # ID 매핑 테이블
+            design_mapping = {
+                "1": 1,
+                "10": 2,
+                "11": 3,
+                "12": 4,
+                "13": 5,
+                "14": 6,
+                "15": 7,
+                "16": 8,
+                "17": 9,
+                "18": 10,
+            }
+
+            mapped_id = design_mapping.get(original_id)
+            if not mapped_id:
+                return JsonResponse({"error": f"Invalid design ID: {original_id}"}, status=400)
+            
             unique_filename = f"{uuid.uuid4()}.png"
             hand_image_path = Path(settings.MEDIA_ROOT) / "tryon/hand" / unique_filename
             predicted_path_dir = Path(settings.MEDIA_ROOT) / "tryon/predicted"
@@ -432,13 +459,13 @@ class TryOnView(APIView):
                     f.write(chunk)
                     
             # 모델 서버 url
-            model_server_url = "https://326d-211-117-82-98.ngrok-free.app/predict"
+            model_server_url = "https://52b9-211-117-82-98.ngrok-free.app/predict"
             
             files = {
                 "image": (hand_image.name, open(hand_image_path, "rb"), "image/png"),
             }
-
-            response = requests.post(model_server_url, files=files, stream=True)
+            data = {"design_name": mapped_id}
+            response = requests.post(model_server_url, files=files, data=data, stream=True)
             if response.status_code != 200:
                 return JsonResponse({"error": f"Model server error: {response.text}"}, status=500)
 
