@@ -28,9 +28,6 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             
             logger.info(f"Connection attempt: user_type={self.user_type}, user_id={self.user_id}")
             
-            # 그룹 이름 설정
-            self.group_name = f"{self.user_type}_{self.user_id}"
-            
             # 사용자 객체 가져오기
             user, user_type = await database_sync_to_async(get_user_id)(self.user_type, self.user_id)
             self.user = user
@@ -38,9 +35,11 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             
             # 고객 또는 샵의 key값 가져오기
             if self.user_type == "customer":
-                self.customer_key = self.user.customer_key    
+                self.customer_key = self.user.customer_key
+                self.group_name = f"customer_{self.customer_key}"
             elif self.user_type == "shop":          
-                self.shop_key = self.user.shop_key            
+                self.shop_key = self.user.shop_key
+                self.group_name = f"shop_{self.shop_key}"        
                 
             # 그룹에 추가
             await self.channel_layer.group_add(
@@ -102,7 +101,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 await self.handle_get_responses(data)
             elif action == "get_requests": 
                 await self.handle_get_requests(data)
-            if action == "try_on":
+            elif action == "try_on":
                 await self.handle_try_on(data)
             else:
                 await self.send(text_data=json.dumps({
@@ -236,7 +235,8 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps({
                 "type": "completed_request",
                 "status": "pending",
-                "message": "시술 요청이 완료되었습니다."
+                "message": "시술 요청이 완료되었습니다.",
+                "request_key": str(request.request_key)
             }, ensure_ascii=False))
 
         except (Customers.DoesNotExist, Designs.DoesNotExist) as e:
@@ -328,8 +328,8 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
             # 1. 네일샵에게 응답
             await self.send(text_data=json.dumps({
                 "type": "completed_response",
-                "status": response_status,
-                "response_data": response_data
+                "message": "응답이 완료되었습니다.",
+                "response_key": str(response.response_key)
             }, ensure_ascii=False))
 
             # 2. 고객에게 새 응답 알림 
@@ -337,8 +337,8 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
                 f"customer_{request.customer.customer_key}",
                 {
                     "type": "notify_customer_new_response",
-                    "request_key": str(request.request_key),
-                    "shop_name": response.shop.shop_name
+                    "shop_name": response.shop.shop_name,
+                    "request_key": str(request.request_key)
                 }
             )
             
@@ -367,6 +367,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         """고객의 요청이 도착했음을 샵에게 알림"""
         await self.send(text_data=json.dumps({
             "type": "new_request",
+            "message": "새로운 시술 요청이 도착했습니다.",
             "request_key": event["request_key"]
         }, ensure_ascii=False))
 
@@ -374,6 +375,7 @@ class NailServiceConsumer(AsyncWebsocketConsumer):
         """샵의 응답이 도착했음을 고객에게 알림"""
         await self.send(text_data=json.dumps({
             "type": "new_response",
+            "message": "요청에 대한 응답이 도착했습니다.",
             "shop_name": event["shop_name"],
             "request_key": event["request_key"]
         }, ensure_ascii=False))
