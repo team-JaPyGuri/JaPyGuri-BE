@@ -20,6 +20,9 @@ from .serializers import *
 from .models import *
 from .utils import get_user_id
 
+from PIL import Image
+import base64
+import shutil  
 import requests
 import random
 import re 
@@ -465,7 +468,8 @@ class TryOnView(APIView):
                 "image": (hand_image.name, open(hand_image_path, "rb"), "image/png"),
             }
             data = {"design_name": mapped_id}
-            response = requests.post(model_server_url, files=files, data=data, stream=True)
+            
+            response = requests.post(model_server_url, files=files, data=data)
             if response.status_code != 200:
                 return JsonResponse({"error": f"Model server error: {response.text}"}, status=500)
 
@@ -473,9 +477,28 @@ class TryOnView(APIView):
             predicted_path = Path(settings.MEDIA_ROOT) / "tryon/predicted" / predicted_filename
             os.makedirs(predicted_path.parent, exist_ok=True)
 
-            with open(predicted_path, "wb") as predicted_file:
-                for chunk in response.iter_content(chunk_size=8192):
-                    predicted_file.write(chunk)
+            temp_path = predicted_path.parent / f"temp_{predicted_filename}"
+
+            try:
+                # base64 디코딩 후 임시 저장
+                image_data = base64.b64decode(response.json()['image_data'])
+                with open(temp_path, "wb") as temp_file:
+                    temp_file.write(image_data)
+                
+                # 이미지 유효성 검사
+                try:
+                    with Image.open(temp_path) as img:
+                        img.verify()
+                    print(f"이미지가 정상적으로 수신되었습니다. 크기: {os.path.getsize(temp_path)} bytes")
+                    
+                    # 정상이면 실제 위치로 이동
+                    shutil.move(temp_path, predicted_path)
+                except Exception as e:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                    raise ValueError(f"수신된 이미지가 손상되었습니다: {str(e)}")
+            except Exception as e:
+                return JsonResponse({"error": f"이미지 처리 중 오류 발생: {str(e)}"}, status=500)
 
             # WebSocket 및 히스토리 저장
             try:
@@ -578,11 +601,11 @@ class TryOnHistoryView(APIView):
         for item in history:
             try:
                 original_image_url = (
-                    request.build_absolute_uri(item.original_image.url)
+                    request.build_absolute_uri(item.original_image.url).replace('http://', 'https://')
                     if item.original_image else None
                 )
                 predicted_image_url = (
-                    request.build_absolute_uri(item.predicted_image.url)
+                    request.build_absolute_uri(item.predicted_image.url).replace('http://', 'https://')
                     if item.predicted_image else None
                 )
                 # 배포 서버
