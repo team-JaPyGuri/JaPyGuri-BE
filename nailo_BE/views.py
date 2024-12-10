@@ -512,7 +512,7 @@ class TryOnView(APIView):
                     design_key=design,
                 )
 
-                group_name = f"{user_type}_{user_id}"
+                group_name = f"customer_{customer.customer_key}"
                 channel_layer = get_channel_layer()
                 async_to_sync(channel_layer.group_send)(
                     group_name,
@@ -520,7 +520,7 @@ class TryOnView(APIView):
                         "type": "notify_tryon_result",
                         "original_image": f"/media/tryon/hand/{unique_filename}",
                         "predicted_image": f"/media/tryon/predicted/{predicted_filename}",
-                        "design_key": design_key,
+                        "design_key": str(design_key)
                     },
                 )
             except Exception as e:
