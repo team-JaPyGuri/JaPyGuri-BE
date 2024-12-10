@@ -220,7 +220,7 @@ Format:
 Format:
 ```json
 {
-  "type": "notify_tryon_result",
+  "type": "tryon_result",
   "message": "<string>"
 }
 ```
