@@ -12,3 +12,4 @@
 *.sqlite3
 data.json
 media
+nailo\settings.py
